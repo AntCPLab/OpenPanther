@@ -105,13 +105,16 @@ spu::Value ArgMax(spu::SPUContext* ctx, const spu::Value& x, int axis,
   auto index = skh::Broadcast(ctx, skh::Iota(ctx, spu::DT_I32, x.shape()[axis]),
                               x.shape(), spu::Axes{axis});
   index = skh::Seal(ctx, index);
-
+  int count = 0;
   auto ret = spu::kernel::hlo::Reduce(
       ctx, {x, index}, {spu::Value(), spu::Value()}, spu::Axes{axis},
       [&](absl::Span<spu::Value const> lhs, absl::Span<spu::Value const> rhs) {
         // NOTE(lwj): we skip NaN check and return the 1st operand if the two
         // operands are identical
         auto lt = skh::Less(ctx, lhs[0], rhs[0]);
+        count++;
+        std::cout << count << "lhs size: " << lhs[0].elsize()
+                  << " rhs size: " << rhs[0] << std::endl;
         // TODO(lwj): should we insert the _prefer_a for ABY3 here?
         auto max_val = skh::Select(ctx, lt, rhs[0], lhs[0]);
         auto max_idx = skh::Select(ctx, lt, rhs[1], lhs[1]);

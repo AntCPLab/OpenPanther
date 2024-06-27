@@ -120,7 +120,7 @@ class CheetahOTState : public State {
 
   static constexpr size_t kMaxOTParallel = 48;
 
-  size_t maximum_instances_ = 0;
+  size_t maximum_instances_;
   std::vector<ProtPtr> basic_ot_prot_;
   CheetahOtKind ot_kind_;
 
@@ -131,6 +131,7 @@ class CheetahOTState : public State {
       : maximum_instances_(std::min(kMaxOTParallel, maximum_instances)),
         basic_ot_prot_(maximum_instances_),
         ot_kind_(ot_kind) {
+    maximum_instances_ = 1;
     SPU_ENFORCE(maximum_instances_ > 0);
     std::string ot_type;
     switch (ot_kind_) {
@@ -145,7 +146,8 @@ class CheetahOTState : public State {
         ot_type = "yacl_softspoken";
         break;
     }
-    SPDLOG_DEBUG("CHEETAH: Uses {} OT", ot_type);
+    SPDLOG_INFO("CHEETAH: Uses {} OT", ot_type);
+    // SPDLOG_DEBUG("CHEETAH: Uses {} OT", ot_type);
   }
 
   ~CheetahOTState() override = default;

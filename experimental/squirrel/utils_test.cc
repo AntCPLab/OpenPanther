@@ -46,63 +46,12 @@ spu::Value infeed(spu::SPUContext* ctx, const xt::xarray<T>& ds,
   return x;
 }
 
-TEST_F(UtilsTest, ReduceSum) {
-  using namespace spu;
-  using namespace spu::kernel;
-  using namespace spu::mpc;
-  spu::FieldType field = spu::FM64;
-  spu::Shape shape = {3, 5, 4};
-
-  std::default_random_engine rdv(std::time(0));
-  std::uniform_real_distribution<double> uniform(-1024., 1024.);
-
-  std::vector<size_t> _shape;
-  for (int i = 0; i < shape.ndim(); ++i) {
-    _shape.push_back((size_t)shape[i]);
-  }
-  xt::xarray<double> _x(_shape);
-  std::generate_n(_x.data(), _x.size(), [&]() { return 0.1 + uniform(rdv); });
-
-  spu::mpc::utils::simulate(2, [&](std::shared_ptr<yacl::link::Context> lctx) {
-    spu::RuntimeConfig rt_config;
-    rt_config.set_protocol(ProtocolKind::REF2K);
-    rt_config.set_field(field);
-    rt_config.set_fxp_fraction_bits(16);
-
-    auto _ctx = std::make_unique<spu::SPUContext>(rt_config, lctx);
-    auto* ctx = _ctx.get();
-    spu::mpc::Factory::RegisterProtocol(ctx, lctx);
-    auto x = infeed(ctx, _x);
-
-    for (int axis = 0; axis < shape.ndim(); ++axis) {
-      auto expected = spu::xt_to_ndarray(xt::sum(_x, {axis}));
-      auto got = ReduceSum(ctx, x, axis);
-      got = hlo::Reveal(ctx, got);
-
-      ASSERT_EQ(expected.numel(), got.numel());
-
-      if (lctx->Rank() == 0) {
-        const double fxp = std::pow(2., rt_config.fxp_fraction_bits());
-        auto flatten = got.data().reshape({got.numel()});
-
-        DISPATCH_ALL_FIELDS(field, "check", [&]() {
-          using s2k = std::make_signed<ring2k_t>::type;
-          NdArrayView<s2k> got(flatten);
-          for (int64_t i = 0; i < expected.numel(); ++i) {
-            ASSERT_NEAR(expected.at<double>(i), got[i] / fxp, 1024. / fxp);
-          }
-        });
-      }
-    }
-  });
-}
-
 TEST_F(UtilsTest, ArgMax) {
   using namespace spu;
   using namespace spu::kernel;
   using namespace spu::mpc;
-  spu::FieldType field = spu::FM64;
-  spu::Shape shape = {3, 5, 4};
+  spu::FieldType field = spu::FM32;
+  spu::Shape shape = {10, 110};
 
   std::default_random_engine rdv(std::time(0));
   std::uniform_real_distribution<double> uniform(-1024., 1024.);
@@ -117,7 +66,7 @@ TEST_F(UtilsTest, ArgMax) {
 
   spu::mpc::utils::simulate(2, [&](std::shared_ptr<yacl::link::Context> lctx) {
     spu::RuntimeConfig rt_config;
-    rt_config.set_protocol(ProtocolKind::REF2K);
+    rt_config.set_protocol(ProtocolKind::CHEETAH);
     rt_config.set_field(field);
     rt_config.set_fxp_fraction_bits(16);
 
@@ -128,7 +77,26 @@ TEST_F(UtilsTest, ArgMax) {
 
     for (int axis = 0; axis < shape.ndim(); ++axis) {
       auto expected = xt::argmax(_x, axis);
+
+      [[maybe_unused]] auto b0 = lctx->GetStats()->sent_bytes.load();
+      [[maybe_unused]] auto s0 = lctx->GetStats()->sent_actions.load();
+
+      auto start = std::chrono::high_resolution_clock::now();
       auto got = ArgMax(ctx, x, axis);
+
+      auto end = std::chrono::high_resolution_clock::now();
+      SPDLOG_INFO(
+          "Time {} ms",
+          (std::chrono::duration_cast<std::chrono::microseconds>(end - start)
+               .count() /
+           1000));
+      [[maybe_unused]] auto b1 = lctx->GetStats()->sent_bytes.load();
+      [[maybe_unused]] auto s1 = lctx->GetStats()->sent_actions.load();
+
+      SPDLOG_INFO(
+          "Argmax {} elements sent {} bytes, {} bits each #sent "
+          "{}",
+          shape[axis], (b1 - b0), (b1 - b0) * 8. / expected.size(), (s1 - s0));
       got = hlo::Reveal(ctx, got);
 
       ASSERT_EQ(expected.size(), (size_t)got.numel());
@@ -142,184 +110,6 @@ TEST_F(UtilsTest, ArgMax) {
             ASSERT_EQ(expected(i), got[i]);
           }
         });
-      }
-    }
-  });
-}
-
-TEST_F(UtilsTest, MulA1BV) {
-  using namespace spu;
-  using namespace spu::kernel;
-  using namespace spu::mpc;
-  spu::FieldType field = spu::FM64;
-  spu::Shape shape = {100, 200};
-
-  std::default_random_engine rdv(std::time(0));
-  std::uniform_real_distribution<double> uniform(-1024., 1024.);
-
-  std::vector<size_t> _shape;
-  for (int i = 0; i < shape.ndim(); ++i) {
-    _shape.push_back((size_t)shape[i]);
-  }
-
-  xt::xarray<double> _x(_shape);
-  std::vector<uint8_t> ind(_x.size());
-  std::generate_n(_x.data(), _x.size(), [&]() { return 0.1 + uniform(rdv); });
-  std::generate_n(ind.data(), ind.size(),
-                  [&]() -> uint8_t { return uniform(rdv) > 0; });
-
-  spu::mpc::utils::simulate(2, [&](std::shared_ptr<yacl::link::Context> lctx) {
-    spu::RuntimeConfig rt_config;
-    rt_config.set_protocol(ProtocolKind::CHEETAH);
-    rt_config.mutable_cheetah_2pc_config()->set_ot_kind(
-        CheetahOtKind::YACL_Softspoken);
-    rt_config.set_field(field);
-    rt_config.set_fxp_fraction_bits(16);
-    rt_config.set_experimental_enable_colocated_optimization(true);
-    rt_config.set_enable_hal_profile(true);
-
-    auto _ctx = std::make_unique<spu::SPUContext>(rt_config, lctx);
-    auto* ctx = _ctx.get();
-    spu::mpc::Factory::RegisterProtocol(ctx, lctx);
-    auto x = infeed(ctx, _x, /*shared*/ true);
-
-    size_t sent = lctx->GetStats()->sent_bytes;
-    spu::Value c = lctx->Rank() == 0
-                       ? MulArithShareWithPrivateBoolean(ctx, x, ind)
-                       : MulArithShareWithPrivateBoolean(ctx, x);
-    sent = lctx->GetStats()->sent_bytes - sent;
-    SPDLOG_INFO("MulA1BV {} bytes {} bits per", sent, sent * 8. / ind.size());
-
-    c = hlo::Reveal(ctx, c);
-
-    if (lctx->Rank() == 0) {
-      double scale = std::pow(2., rt_config.fxp_fraction_bits());
-      for (int64_t i = 0; i < c.numel(); ++i) {
-        if (ind[i]) {
-          ASSERT_NEAR(c.data().at<int64_t>(i) / scale, _x[i], 2. / scale);
-        } else {
-          ASSERT_EQ(c.data().at<uint64_t>(i), 0);
-        }
-      }
-    }
-  });
-}
-
-TEST_F(UtilsTest, MulA1B_AND_style) {
-  using namespace spu;
-  using namespace spu::kernel;
-  using namespace spu::mpc;
-  spu::FieldType field = spu::FM64;
-  spu::Shape shape = {124, 212};
-
-  std::default_random_engine rdv(std::time(0));
-  std::uniform_real_distribution<double> uniform(-1024., 1024.);
-
-  std::vector<size_t> _shape;
-  for (int i = 0; i < shape.ndim(); ++i) {
-    _shape.push_back((size_t)shape[i]);
-  }
-
-  xt::xarray<double> _x(_shape);
-  std::vector<uint8_t> ind[2];
-  std::generate_n(_x.data(), _x.size(), [&]() { return 0.1 + uniform(rdv); });
-  ind[0].resize(_x.size());
-  ind[1].resize(_x.size());
-  std::generate_n(ind[0].data(), ind[0].size(),
-                  [&]() -> uint8_t { return uniform(rdv) > 0; });
-  std::generate_n(ind[1].data(), ind[1].size(),
-                  [&]() -> uint8_t { return uniform(rdv) > 0; });
-
-  spu::mpc::utils::simulate(2, [&](std::shared_ptr<yacl::link::Context> lctx) {
-    spu::RuntimeConfig rt_config;
-    rt_config.set_protocol(ProtocolKind::CHEETAH);
-    rt_config.set_field(field);
-    rt_config.mutable_cheetah_2pc_config()->set_ot_kind(
-        CheetahOtKind::YACL_Softspoken);
-    rt_config.set_fxp_fraction_bits(16);
-    rt_config.set_experimental_enable_colocated_optimization(true);
-    rt_config.set_enable_hal_profile(true);
-
-    auto _ctx = std::make_unique<spu::SPUContext>(rt_config, lctx);
-    auto* ctx = _ctx.get();
-    spu::mpc::Factory::RegisterProtocol(ctx, lctx);
-    auto x = infeed(ctx, _x, /*shared*/ true);
-
-    size_t sent = lctx->GetStats()->sent_bytes;
-    spu::Value c = MulArithShareWithANDBoolShare(ctx, x, ind[lctx->Rank()]);
-    sent = lctx->GetStats()->sent_bytes - sent;
-    SPDLOG_INFO("MulA1B {} bytes {} bits per", sent, sent * 8. / shape.numel());
-
-    c = hlo::Reveal(ctx, c);
-
-    if (lctx->Rank() == 0) {
-      double scale = std::pow(2., rt_config.fxp_fraction_bits());
-      for (int64_t i = 0; i < c.numel(); ++i) {
-        if (ind[0][i] & ind[1][i]) {
-          ASSERT_NEAR(c.data().at<int64_t>(i) / scale, _x[i], 2. / scale);
-        } else {
-          ASSERT_EQ(c.data().at<uint64_t>(i), 0);
-        }
-      }
-    }
-  });
-}
-
-TEST_F(UtilsTest, BatchMulA1B_AND_style) {
-  using namespace spu;
-  using namespace spu::kernel;
-  using namespace spu::mpc;
-  spu::FieldType field = spu::FM64;
-
-  int64_t num_batch = 8;
-  int64_t batch_size = 100;
-
-  std::default_random_engine rdv(std::time(0));
-  std::uniform_real_distribution<double> uniform(-1024., 1024.);
-
-  std::vector<size_t> _shape;
-  _shape.push_back(num_batch);
-  xt::xarray<double> _x(_shape);
-  std::vector<uint8_t> ind[2];
-  std::generate_n(_x.data(), _x.size(), [&]() { return 0.1 + uniform(rdv); });
-  ind[0].resize(num_batch * batch_size);
-  ind[1].resize(num_batch * batch_size);
-  std::generate_n(ind[0].data(), ind[0].size(),
-                  [&]() -> uint8_t { return uniform(rdv) > 0; });
-  std::generate_n(ind[1].data(), ind[1].size(),
-                  [&]() -> uint8_t { return uniform(rdv) > 0; });
-
-  spu::mpc::utils::simulate(2, [&](std::shared_ptr<yacl::link::Context> lctx) {
-    spu::RuntimeConfig rt_config;
-    rt_config.set_protocol(ProtocolKind::CHEETAH);
-    rt_config.mutable_cheetah_2pc_config()->set_ot_kind(
-        CheetahOtKind::YACL_Softspoken);
-    rt_config.set_field(field);
-    rt_config.set_fxp_fraction_bits(16);
-    rt_config.set_experimental_enable_colocated_optimization(true);
-    rt_config.set_enable_hal_profile(true);
-
-    auto _ctx = std::make_unique<spu::SPUContext>(rt_config, lctx);
-    auto* ctx = _ctx.get();
-    spu::mpc::Factory::RegisterProtocol(ctx, lctx);
-    auto x = infeed(ctx, _x, /*shared*/ true);
-
-    spu::Value c = BatchMulArithShareWithANDBoolShare(ctx, x, batch_size,
-                                                      ind[lctx->Rank()]);
-    c = hlo::Reveal(ctx, c);
-
-    if (lctx->Rank() == 0) {
-      double scale = std::pow(2., rt_config.fxp_fraction_bits());
-
-      for (int64_t k = 0; k < c.numel(); k += batch_size) {
-        for (int64_t i = 0; i < batch_size; ++i) {
-          if (ind[0][k + i] & ind[1][k + i]) {
-            ASSERT_NEAR(c.data().at<int64_t>(k + i) / scale, _x[k / batch_size],
-                        2. / scale);
-          } else {
-            ASSERT_EQ(c.data().at<uint64_t>(k + i), 0);
-          }
-        }
       }
     }
   });

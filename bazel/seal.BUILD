@@ -55,7 +55,7 @@ spu_cmake_external(
     name = "seal",
     cache_entries = select({
         ":can_use_hexl": x64_hexl_config,
-        "//conditions:default": default_config,
+        "//conditions:default": x64_hexl_config,
     }),
     lib_source = "@com_github_microsoft_seal//:all",
     out_include_dir = "include/SEAL-4.1",

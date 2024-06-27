@@ -27,6 +27,7 @@ def spu_deps():
     _com_intel_hexl()
     _com_github_emptoolkit_emp_tool()
     _com_github_emptoolkit_emp_ot()
+    _com_github_emptoolkit_emp_sh2pc()
     _com_github_facebook_zstd()
     _com_github_microsoft_seal()
     _com_github_eigenteam_eigen()
@@ -173,8 +174,8 @@ def _com_intel_hexl():
         urls = [
             "https://github.com/intel/hexl/archive/refs/tags/v1.2.5.tar.gz",
         ],
-        patch_args = ["-p1"],
-        patches = ["@spulib//bazel:patches/hexl.patch"],
+        # patch_args = ["-p1"],
+        # patches = ["@spulib//bazel:patches/hexl.patch"],
     )
 
 def _com_github_emptoolkit_emp_tool():
@@ -194,6 +195,24 @@ def _com_github_emptoolkit_emp_tool():
             "https://github.com/emp-toolkit/emp-tool/archive/refs/tags/0.2.5.tar.gz",
         ],
         build_file = "@spulib//bazel:emp-tool.BUILD",
+    )
+
+def _com_github_emptoolkit_emp_sh2pc():
+    maybe(
+        http_archive,
+        name = "com_github_emptoolkit_emp_sh2pc",
+        sha256 = "95e98fcb7e58a4a69942280aadf95b832cdd2a202acf7905c1b482f8bef56559",
+        strip_prefix = "emp-sh2pc-0.2.2",
+        type = "tar.gz",
+        patch_args = ["-p1"],
+        patches = [
+            "@spulib//bazel:patches/emp-sh2pc.patch",
+        ],
+        urls = [
+            "https://github.com/emp-toolkit/emp-sh2pc/archive/refs/tags/0.2.2.tar.gz",
+        ],
+
+        build_file = "@spulib//bazel:emp-sh2pc.BUILD",
     )
 
 def _com_github_emptoolkit_emp_ot():

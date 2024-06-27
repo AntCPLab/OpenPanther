@@ -34,6 +34,9 @@ inline T CeilDiv(T a, T b) {
   return (a + b - 1) / b;
 }
 
+// template <typename T>
+// inline T CeilDiv(T a, T b);
+
 struct EnableCPRNG {
   explicit EnableCPRNG();
 

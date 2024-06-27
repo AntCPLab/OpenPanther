@@ -32,13 +32,25 @@ size_t InitOTState(KernelEvalContext* ctx, size_t njobs) {
   if (njobs == 0) {
     return 0;
   }
+
+  // std::cout << "Init before:"
+  //           << ctx->sctx()->lctx()->GetStats()->sent_actions.load()
+  //           << std::endl;
+
   auto* comm = ctx->getState<Communicator>();
   auto* ot_state = ctx->getState<CheetahOTState>();
   size_t nworker =
       std::min(ot_state->maximum_instances(), CeilDiv(njobs, kMinWorkSize));
+  // SPDLOG_INFO("max_ins:{} nworker:{} ", ot_state->maximum_instances(),
+  // nworker);
   for (size_t w = 0; w < nworker; ++w) {
     ot_state->LazyInit(comm, w);
   }
+
+  // std::cout << "Init done:"
+  //           << ctx->sctx()->lctx()->GetStats()->sent_actions.load()
+  //           << std::endl;
+
   return nworker;
 }
 }  // namespace
@@ -167,11 +179,14 @@ NdArrayRef TiledDispatchOTFunc(KernelEvalContext* ctx, const NdArrayRef& x,
         },
         wi, slice_input));
   }
-
   auto slice_input = x.slice({slice_end}, {numel}, {1});
   auto ot_instance = ctx->getState<CheetahOTState>()->get(nworker - 1);
-  outs[nworker - 1] = func(slice_input, ot_instance);
 
+  // std::cout << ctx->sctx()->lctx()->GetStats()->sent_actions.load()
+  // << std::endl;
+  outs[nworker - 1] = func(slice_input, ot_instance);
+  // std::cout << ctx->sctx()->lctx()->GetStats()->sent_actions.load()
+  // << std::endl;
   for (auto&& f : futures) {
     f.get();
   }

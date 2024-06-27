@@ -26,6 +26,7 @@ namespace yl = yacl::link;
 uint128_t YaclFerretOTeAdapter::yacl_id_ = 0;
 
 void YaclFerretOTeAdapter::OneTimeSetup() {
+  // SPDLOG_INFO("test!!!!");
   if (is_setup_) {
     return;
   }
@@ -82,8 +83,7 @@ void YaclFerretOTeAdapter::OneTimeSetup() {
   is_setup_ = true;
   buff_used_num_ = reserve_num_;
   buff_upper_bound_ = pre_lpn_param_.n;
-  // Delay boostrap
-  // Bootstrap();
+  Bootstrap();
 }
 
 void YaclFerretOTeAdapter::rcot(absl::Span<uint128_t> data) {
@@ -103,6 +103,7 @@ void YaclFerretOTeAdapter::rcot(absl::Span<uint128_t> data) {
     while (require_num >= lpn_param_.n) {
       // avoid memory copy
       BootstrapInplace(ot_span, data.subspan(data_offset, lpn_param_.n));
+      // SPDLOG_INFO("Bootstrap Inplace");
 
       data_offset += (lpn_param_.n - reserve_num_);
       require_num -= (lpn_param_.n - reserve_num_);
@@ -198,6 +199,7 @@ void YaclFerretOTeAdapter::recv_cot(
 }
 
 void YaclFerretOTeAdapter::Bootstrap() {
+  std::cout << "Bootstrap()" << std::endl;
   auto begin = std::chrono::high_resolution_clock::now();
   if (is_sender_) {
     yacl::UninitAlignedVector<uint128_t> send_ot(

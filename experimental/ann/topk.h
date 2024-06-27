@@ -1,0 +1,25 @@
+#pragma once
+
+#include "emp-sh2pc/emp-sh2pc.h"
+namespace sanns::gc {
+using namespace emp;
+using namespace std;
+
+using namespace std::chrono;
+
+void Discard(Integer *a, int len, int discard_bits);
+
+void Mux(Integer &a1, Integer &a2, const Bit &b);
+
+void Tree_min(Integer *input, Integer *index, int len, Integer *res,
+              Integer *res_id);
+
+void Min(Integer *input, Integer *index, int len, Integer *res,
+         Integer *res_id);
+
+void Naive_topk(Integer *input, Integer *index, int len, int k, Integer *res,
+                Integer *res_id);
+
+void Approximate_topk(Integer *input, Integer *index, int len, int k, int l,
+                      Integer *res, Integer *res_id);
+}  // namespace sanns::gc

@@ -1,0 +1,15 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index deed58d..24e270d 100755
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -12,5 +12,8 @@ include_directories(${EMP-OT_INCLUDE_DIRS})
+ install(FILES cmake/emp-sh2pc-config.cmake DESTINATION cmake/)
+ install(DIRECTORY emp-sh2pc DESTINATION include/)
+ 
+-ENABLE_TESTING()
+-ADD_SUBDIRECTORY(test)
++option(ENABLE_TESTS "Enable tests" OFF)
++if (${ENABLE_TESTS})
++    ENABLE_TESTING()
++    ADD_SUBDIRECTORY(test)
++endif()
