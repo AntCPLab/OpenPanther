@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "libspu/fix_pir/seal_mpir.h"
+#include "seal_mpir.h"
 
 #include <algorithm>
 #include <memory>
@@ -22,7 +22,7 @@
 
 #include "spdlog/spdlog.h"
 
-#include "libspu/fix_pir/serializable.pb.h"
+#include "experimental/ann/fix_pir/serializable.pb.h"
 
 namespace spu::seal_pir {
 
@@ -260,7 +260,8 @@ std::vector<std::vector<uint32_t>> MultiQueryServer::DoMultiPirAnswer(
   std::cout << "Query sent comm: " << (s1 - s0) / 1024.0 << " KB" << std::endl;
   const auto answer_time_end = std::chrono::system_clock::now();
   const DurationMillis time = answer_time_end - answer_time;
-  std::cout << "Answer generate: " << time.count() << " ms" << std::endl;
+  std::cout << "Answer generate:" << time.count() << " ms" << std::endl;
+  return random_mask;
 }
 
 void MultiQueryClient::GenerateSimpleHashMap() {

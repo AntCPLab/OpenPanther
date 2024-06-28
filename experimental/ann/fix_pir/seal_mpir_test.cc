@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "libspu/fix_pir/seal_mpir.h"
+#include "seal_mpir.h"
 
 #include <chrono>
 #include <random>

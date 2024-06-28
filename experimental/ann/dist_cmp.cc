@@ -29,6 +29,8 @@ DisClient::DisClient(size_t degree, uint32_t num_points, uint32_t points_dims,
   conn_ = conn;
 }
 
+// DisClient::SendPublicKey();
+
 std::vector<seal::Ciphertext> DisClient::GenerateQuery(
     std::vector<uint32_t> &q) {
   size_t q_size = q.size();
@@ -98,7 +100,7 @@ struct DisServer::Impl : public spu::mpc::cheetah::EnableCPRNG {
   Impl(){};
 
  private:
-  std::vector<seal::Ciphertext> H2A(std::vector<seal::Ciphertext> &ct);
+  // std::vector<seal::Ciphertext> H2A(std::vector<seal::Ciphertext> &ct);
 };  /// Server compute distance
 
 DisServer::DisServer(size_t degree,

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "libspu/fix_pir/seal_pir.h"
+#include "seal_pir.h"
 
 #include <algorithm>
 #include <cmath>
@@ -21,10 +21,13 @@
 #include <utility>
 
 #include "seal/util/polyarithsmallmod.h"
+#include "seal/util/rlwe.h"
 #include "spdlog/spdlog.h"
 #include "yacl/base/exception.h"
 #include "yacl/utils/parallel.h"
 
+#include "libspu/mpc/cheetah/arith/common.h"
+#include "libspu/mpc/cheetah/rlwe/utils.h"
 using namespace std;
 
 namespace spu::seal_pir {
@@ -415,6 +418,18 @@ SealPirServer::SealPirServer(const SealPirOptions &options,
       plaintext_store_(std::move(plaintext_store)),
       is_db_preprocessed_(false) {
   yacl::set_num_threads(1);
+  impl_ = std::make_shared<Impl>();
+
+  std::vector<seal::Modulus> raw_modulus = enc_params_->coeff_modulus();
+  std::vector<seal::Modulus> modulus = enc_params_->coeff_modulus();
+  modulus.pop_back();
+  modulus.pop_back();
+  enc_params_->set_coeff_modulus(modulus);
+  seal::SEALContext test_context(*enc_params_, false,
+                                 seal::sec_level_type::none);
+  enc_params_->set_coeff_modulus(raw_modulus);
+  msh_ = std::make_unique<spu::mpc::cheetah::ModulusSwitchHelper>(test_context,
+                                                                  options.logt);
 }
 #endif
 
@@ -1044,6 +1059,19 @@ void SealPirServer::DeSerializeDbPlaintext(
       std::make_unique<std::vector<seal::Plaintext>>(plaintext_vec);
 }
 
+void SealPirServer::RecvPublicKey(
+    const std::shared_ptr<yacl::link::Context> &link_ctx) {
+  yacl::Buffer pubkey_buffer = link_ctx->Recv(
+      link_ctx->NextRank(),
+      fmt::format("recv public key from rank-{}", link_ctx->Rank()));
+
+  std::string pubkey_str(pubkey_buffer.size(), '\0');
+  std::memcpy(pubkey_str.data(), pubkey_buffer.data(), pubkey_buffer.size());
+
+  auto pubkey = DeSerializeSealObject<seal::PublicKey>(pubkey_str);
+  SetPublicKey(pubkey);
+}
+
 void SealPirServer::RecvGaloisKeys(
     const std::shared_ptr<yacl::link::Context> &link_ctx) {
   yacl::Buffer galkey_buffer = link_ctx->Recv(
@@ -1079,12 +1107,47 @@ void SealPirServer::DoPirAnswer(
   SPDLOG_INFO("Server finished GenerateReply and send to Client");
 }
 
+// TODO(ljy): clean H2A
+struct SealPirServer::Impl : public spu::mpc::cheetah::EnableCPRNG {
+ public:
+  Impl(){};
+};
+
+void SealPirServer::DecodePolyToVector(const seal::Plaintext &poly,
+                                       std::vector<uint32_t> &out) {
+  auto poly_wrap = absl::MakeConstSpan(poly.data(), poly.coeff_count());
+  auto out_wrap =
+      absl::MakeSpan(out.data(), enc_params_->poly_modulus_degree());
+  msh_->ModulusDownRNS(poly_wrap, out_wrap);
+}
+
+void SealPirServer::H2A(std::vector<seal::Ciphertext> &ct,
+                        std::vector<uint32_t> &random_mask) {
+  seal::Plaintext rand;
+  seal::Ciphertext zero_ct;
+  std::vector<uint32_t> out(enc_params_->poly_modulus_degree(), 0);
+
+  impl_->UniformPoly(*context_, &rand, ct[0].parms_id());
+  DecodePolyToVector(rand, out);
+  memcpy(random_mask.data(), out.data(), random_mask.size() * 4);
+
+  for (size_t idx = 0; idx < ct.size(); idx++) {
+    // TODO(ljy): preprocess generate more encrypted_zero
+    spu::mpc::cheetah::ModulusSwtichInplace(ct[idx], 1, *context_);
+    seal::util::encrypt_zero_asymmetric(public_key_, *context_,
+                                        ct[idx].parms_id(),
+                                        ct[idx].is_ntt_form(), zero_ct);
+    evaluator_->add_inplace(ct[idx], zero_ct);
+    spu::mpc::cheetah::SubPlainInplace(ct[idx], rand, *context_);
+  }
+}
+
+// Client Defination
 // SealPirClient
 SealPirClient::SealPirClient(const SealPirOptions &options) : SealPir(options) {
   keygen_ = std::make_unique<seal::KeyGenerator>(*context_);
 
   seal::SecretKey secret_key = keygen_->secret_key();
-  seal::PublicKey public_key_;
   keygen_->create_public_key(public_key_);
 
   encryptor_ = std::make_unique<seal::Encryptor>(*context_, public_key_);
@@ -1344,19 +1407,17 @@ std::vector<uint32_t> SealPirClient::PlaintextToBytes(
   return elements;
 }
 
-// std::vector<uint8_t> SealPirClient::PlaintextToBytes(
-//     const seal::Plaintext &plain) {
-//   uint32_t N = enc_params_->poly_modulus_degree();
-//   uint32_t logt =
-//   std::floor(std::log2(enc_params_->plain_modulus().value()));
+void SealPirClient::SendPublicKey(
+    const std::shared_ptr<yacl::link::Context> &link_ctx) {
+  seal::PublicKey pubkey = public_key_;
 
-//   // Convert from FV plaintext (polynomial) to database element at the client
-//   std::vector<uint8_t> elements(N * logt / 8);
+  std::string pubkey_str = SerializeSealObject<seal::PublicKey>(pubkey);
+  yacl::Buffer pubkey_buffer(pubkey_str.data(), pubkey_str.length());
 
-//   CoeffsToBytes(logt, plain, elements.data(), (N * logt) / 8);
-
-//   return elements;
-// // }
+  link_ctx->SendAsync(
+      link_ctx->NextRank(), pubkey_buffer,
+      fmt::format("send public key to rank-{}", link_ctx->Rank()));
+}
 
 void SealPirClient::SendGaloisKeys(
     const std::shared_ptr<yacl::link::Context> &link_ctx) {
@@ -1409,49 +1470,4 @@ std::vector<uint32_t> SealPirClient::DoPirQuery(
 
   return query_reply_data;
 }
-// std::vector<uint8_t> SealPirClient::DoPirQuery(
-//     const std::shared_ptr<yacl::link::Context> &link_ctx, size_t db_index) {
-//   size_t query_index = db_index;
-//   size_t start_pos = 0;
-//   // 假设 总的 db = 100, query_size = 10
-//   // db_index = 87, query_index = 7, start_pos = 87 -7 = 80
-//   if (options_.query_size != 0) {
-//     query_index = db_index % options_.query_size;
-//     start_pos = db_index - query_index;
-//   }
-
-//   std::vector<std::vector<seal::Ciphertext>> query_ciphers =
-//       GenerateQuery(query_index);
-
-//   SealPirQueryProto query_proto;
-//   query_proto.set_query_size(options_.query_size);
-//   query_proto.set_start_pos(start_pos);
-
-//   yacl::Buffer query_buffer = SerializeQuery(&query_proto, query_ciphers);
-//   link_ctx->SendAsync(
-//       link_ctx->NextRank(), query_buffer,
-//       fmt::format("send query message({})", query_buffer.size()));
-//   SPDLOG_INFO("Client finished GenerateQuery and send");
-
-//   yacl::Buffer reply_buffer =
-//       link_ctx->Recv(link_ctx->NextRank(), fmt::format("send query
-//       message"));
-
-//   std::vector<seal::Ciphertext> reply_ciphers =
-//       DeSerializeCiphertexts(reply_buffer);
-
-//   SPDLOG_INFO("Client received reply");
-
-//   seal::Plaintext query_plain = DecodeReply(reply_ciphers);
-
-//   size_t offset = GetQueryOffset(query_index);
-//   YACL_ENFORCE(offset == 0);
-
-//   std::vector<uint8_t> query_reply_data = ExtractBytes(query_plain, offset);
-
-//   YACL_ENFORCE(query_reply_data.size() == pir_params_.ele_size);
-
-//   return query_reply_data;
-// }
-
 }  // namespace spu::seal_pir

@@ -20,12 +20,13 @@
 #include <vector>
 
 #include "seal/seal.h"
+#include "seal_pir_utils.h"
 #include "yacl/base/byte_container_view.h"
 #include "yacl/link/link.h"
 
-#include "libspu/fix_pir/seal_pir_utils.h"
+#include "libspu/mpc/cheetah/arith/vector_encoder.h"
 
-#include "libspu/fix_pir/serializable.pb.h"
+#include "experimental/ann/fix_pir/serializable.pb.h"
 
 namespace spu::seal_pir {
 
@@ -198,6 +199,8 @@ class SealPirServer : public SealPir {
   // set client GaloisKeys
   void SetGaloisKeys(const seal::GaloisKeys &galkey) { galois_key_ = galkey; }
 
+  void SetPublicKey(const seal::PublicKey &pubkey) { public_key_ = pubkey; }
+
   // expand one query Seal:Ciphertext
   std::vector<seal::Ciphertext> ExpandQuery(const seal::Ciphertext &encrypted,
                                             std::uint32_t m);
@@ -217,11 +220,20 @@ class SealPirServer : public SealPir {
 
   // receive, deserialize, and set client GaloisKeys
   void RecvGaloisKeys(const std::shared_ptr<yacl::link::Context> &link_ctx);
+  void RecvPublicKey(const std::shared_ptr<yacl::link::Context> &link_ctx);
 
   // receive client query, and answer
   void DoPirAnswer(const std::shared_ptr<yacl::link::Context> &link_ctx);
 
+  void H2A(std::vector<seal::Ciphertext> &ct,
+           std::vector<uint32_t> &random_mask);
+
  private:
+  void DecodePolyToVector(const seal::Plaintext &poly,
+                          std::vector<uint32_t> &out);
+  struct Impl;
+  std::shared_ptr<Impl> impl_;
+  std::unique_ptr<spu::mpc::cheetah::ModulusSwitchHelper> msh_;
   // for debug use, get noise budget
 #ifdef DEC_DEBUG_
   SealPirClient &client_;
@@ -234,6 +246,7 @@ class SealPirServer : public SealPir {
   bool is_db_preprocessed_;
 
   seal::GaloisKeys galois_key_;
+  seal::PublicKey public_key_;
 
   void DecomposeToPlaintextsPtr(const seal::Ciphertext &encrypted,
                                 seal::Plaintext *plain_ptr, int logt);
@@ -266,6 +279,7 @@ class SealPirClient : public SealPir {
 
   // send GaloisKeys to server
   void SendGaloisKeys(const std::shared_ptr<yacl::link::Context> &link_ctx);
+  void SendPublicKey(const std::shared_ptr<yacl::link::Context> &link_ctx);
 
   // generate GaloisKeys
   seal::GaloisKeys GenerateGaloisKeys();
@@ -298,6 +312,7 @@ class SealPirClient : public SealPir {
 
  private:
   std::unique_ptr<seal::KeyGenerator> keygen_;
+  seal::PublicKey public_key_;
 
   std::unique_ptr<seal::Encryptor> encryptor_;
   std::unique_ptr<seal::Decryptor> decryptor_;

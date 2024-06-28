@@ -18,12 +18,12 @@
 #include <memory>
 #include <vector>
 
+#include "seal_pir.h"
 #include "spdlog/spdlog.h"
 #include "yacl/base/exception.h"
 #include "yacl/crypto/block_cipher/symmetric_crypto.h"
 #include "yacl/utils/parallel.h"
 
-#include "libspu/fix_pir/seal_pir.h"
 #include "libspu/psi/core/cuckoo_index.h"
 
 namespace spu::seal_pir {
