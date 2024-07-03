@@ -79,6 +79,8 @@ spu_cc_binary(
         "@llvm-project//llvm:Support",
         "@yacl//yacl/link:factory",
         "//libspu/mpc/cheetah:state",
+        "//experimental/ann/fix_pir:seal_mpir",
+        "//libspu/psi/cryptor:sodium_curve25519_cryptor",
         ":topk",
         "@com_github_openssl_openssl//:openssl",
     ],

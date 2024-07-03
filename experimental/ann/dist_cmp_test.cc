@@ -11,13 +11,14 @@ TEST_P(DistanceCmpTest, localtest) {
   size_t num_points = parms.first;
   size_t points_dim = parms.second;
 
-  int N = 4096;
+  size_t N = 4096;
+  size_t logt = 24;
 
   auto ctxs = yacl::link::test::SetupWorld(2);
-  DisClient client(N, num_points, points_dim, ctxs[0]);
-  DisServer server(N, ctxs[1]);
+  DisClient client(N, logt, ctxs[0]);
+  DisServer server(N, logt, ctxs[1]);
   // TODO:use public key send and recv
-  server.set_pub_key(client.get_pub_key());
+  server.SetPublicKey(client.GetPublicKey());
 
   std::vector<uint32_t> q(points_dim);
   std::vector<std::vector<uint32_t>> ps(num_points,
@@ -30,18 +31,27 @@ TEST_P(DistanceCmpTest, localtest) {
       ps[i][point_i] = rand() % 256;
     }
   }
+  auto c0 = ctxs[0]->GetStats()->sent_bytes.load();
 
-  auto query = client.GenerateQuery(q);
+  client.GenerateQuery(q);
+  auto query = server.RecvQuery(points_dim);
+  auto c1 = ctxs[0]->GetStats()->sent_bytes.load();
+  SPDLOG_INFO("Comm: {} MB", (c1 - c0) / 1024.0 / 1024.0);
+
+  auto cs0 = ctxs[1]->GetStats()->sent_bytes.load();
   auto response = server.DoDistanceCmp(ps, query);
   // TODO: H2A
-  auto vec_reply = client.RecvReply();
+  auto vec_reply = client.RecvReply(num_points);
+
+  auto cs1 = ctxs[1]->GetStats()->sent_bytes.load();
+  SPDLOG_INFO("Response Comm: {} MB", (cs1 - cs0) / 1024.0 / 1024.0);
   const uint32_t MASK = (1 << logt) - 1;
   for (size_t i = 0; i < num_points; i++) {
     uint32_t exp = 0;
     for (size_t point_i = 0; point_i < points_dim; point_i++) {
       exp += q[point_i] * ps[i][point_i];
     }
-    auto get = (response[i / N][i % N] + vec_reply[i]) & MASK;
+    auto get = (response[i] + vec_reply[i]) & MASK;
     EXPECT_NEAR(get, exp, 1);
   }
 }

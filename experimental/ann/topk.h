@@ -22,4 +22,10 @@ void Naive_topk(Integer *input, Integer *index, int len, int k, Integer *res,
 
 void Approximate_topk(Integer *input, Integer *index, int len, int k, int l,
                       Integer *res, Integer *res_id);
+
+std::vector<int32_t> NaiveTopK(size_t n, size_t k, size_t item_bits,
+                               size_t discard_bits, size_t id_bits,
+                               std::vector<uint32_t> &input,
+                               std::vector<uint32_t> &index);
+
 }  // namespace sanns::gc

@@ -6,24 +6,26 @@
 #include "libspu/mpc/cheetah/arith/vector_encoder.h"
 namespace sanns {
 
-const uint32_t logt = 24;
 class DisClient {
  public:
-  DisClient(size_t degree, uint32_t num_points, uint32_t points_dims,
+  DisClient(size_t degree, size_t logt,
             const std::shared_ptr<yacl::link::Context> &conn);
 
   std::vector<seal::Ciphertext> GenerateQuery(std::vector<uint32_t> &q);
 
-  spu::NdArrayRef RecvReply(spu::Shape r_padding_shape);
+  spu::NdArrayRef RecvReply(spu::Shape r_padding_shape, size_t num_points);
+  std::vector<uint32_t> RecvReply(size_t num_points);
   spu::NdArrayRef DecodeReply(std::vector<seal::Ciphertext> &reply,
-                              spu::Shape r_padding_shape);
+                              spu::Shape r_padding_shape, size_t num_points);
+
+  std::vector<uint32_t> DecodeReply(std::vector<seal::Ciphertext> &reply,
+                                    size_t num_points);
 
   // Only for test;
-  inline seal::PublicKey get_pub_key() { return public_key_; };
+  inline seal::PublicKey GetPublicKey() { return public_key_; };
+  void SendPublicKey();
 
  private:
-  uint32_t num_points_;
-  uint32_t points_dims_;
   std::shared_ptr<yacl::link::Context> conn_;
   size_t degree_;
   seal::PublicKey public_key_;
@@ -37,7 +39,13 @@ class DisClient {
 
 class DisServer {
  public:
-  DisServer(size_t degree, const std::shared_ptr<yacl::link::Context> &conn);
+  DisServer(size_t degree, size_t logt,
+            const std::shared_ptr<yacl::link::Context> &conn);
+
+  std::vector<uint32_t> DoDistanceCmp(
+      std::vector<std::vector<uint32_t>> &points,
+      std::vector<seal::Ciphertext> &q);
+
   spu::NdArrayRef DoDistanceCmp(std::vector<std::vector<uint32_t>> &points,
                                 std::vector<seal::Ciphertext> &q,
                                 spu::Shape shape);
@@ -45,7 +53,12 @@ class DisServer {
       std::vector<std::vector<uint32_t>> &points);
 
   spu::NdArrayRef H2A(std::vector<seal::Ciphertext> &ct, spu::Shape shape);
-  inline void set_pub_key(seal::PublicKey pub_key) { public_key_ = pub_key; };
+
+  std::vector<uint32_t> H2A(std::vector<seal::Ciphertext> &ct,
+                            uint32_t points_num);
+  inline void SetPublicKey(seal::PublicKey pub_key) { public_key_ = pub_key; };
+
+  void RecvPublicKey();
 
   std::vector<seal::Ciphertext> RecvQuery(size_t query_size);
 

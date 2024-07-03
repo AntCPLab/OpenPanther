@@ -7,6 +7,7 @@
 #include "absl/strings/str_split.h"
 #include "batch_argmax_prot.h"
 #include "dist_cmp.h"
+#include "experimental/ann/fix_pir/seal_mpir.h"
 #include "llvm/Support/CommandLine.h"
 #include "spdlog/spdlog.h"
 #include "topk.h"
@@ -18,20 +19,26 @@
 #include "libspu/core/type.h"
 #include "libspu/core/value.h"
 #include "libspu/device/io.h"
-#include "libspu/fix_pir/seal_mpir.h"
 #include "libspu/mpc/cheetah/state.h"
 #include "libspu/mpc/common/communicator.h"
 #include "libspu/mpc/factory.h"
 #include "libspu/mpc/utils/ring_ops.h"
 #include "libspu/psi/cryptor/sodium_curve25519_cryptor.h"
 using namespace sanns;
+using DurationMillis = std::chrono::duration<double, std::milli>;
 
-const int32_t bw = 20;
-const uint32_t cluster_number = 100000;
-
-const uint32_t max_c_id_num = 20;
+const size_t logt = 20;
 const uint32_t dims = 128;
-const size_t pit_poly_degree = 4096;
+const size_t N = 4096;
+const size_t compare_radix = 5;
+const size_t max_cluster_points = 20;
+const std::vector<int64_t> k_c = {50810, 25603, 9968, 4227, 31412};
+const std::vector<int64_t> group_bin_number = {458, 270, 178, 84, 262};
+const std::vector<int64_t> group_k_number = {50, 31, 19, 13, 10};
+const size_t total_points_num = 1000000;
+const size_t topk_k = 10;
+const size_t pointer_dc_bits = 8;
+const size_t cluster_dc_bits = 5;
 
 llvm::cl::opt<std::string> Parties(
     "parties", llvm::cl::init("127.0.0.1:9530,127.0.0.1:9531"),
@@ -40,7 +47,7 @@ llvm::cl::opt<std::string> Parties(
 llvm::cl::opt<uint32_t> Rank("rank", llvm::cl::init(0),
                              llvm::cl::desc("self rank"));
 
-llvm::cl::opt<uint32_t> EmpPort("emp_port", llvm::cl::init(9111),
+llvm::cl::opt<uint32_t> EmpPort("emp_port", llvm::cl::init(7111),
                                 llvm::cl::desc("emp port"));
 
 std::shared_ptr<yacl::link::Context> MakeLink(const std::string& parties,
@@ -87,53 +94,11 @@ std::vector<uint32_t> ReadQuery(size_t num_dims) {
   return q;
 }
 
-std::vector<int32_t> naive_topk(int n, int k, int item_bits, int discard_bits,
-                                int id_bits, std::vector<uint32_t>& input,
-                                std::vector<uint32_t>& index) {
-  std::vector<int32_t> gc_id(k);
-  int32_t item_mask = (1 << item_bits) - 1;
-  std::unique_ptr<emp::Integer[]> A = std::make_unique<emp::Integer[]>(n);
-  std::unique_ptr<emp::Integer[]> B = std::make_unique<emp::Integer[]>(n);
-
-  std::unique_ptr<emp::Integer[]> A_idx = std::make_unique<emp::Integer[]>(n);
-  std::unique_ptr<emp::Integer[]> B_idx = std::make_unique<emp::Integer[]>(n);
-  std::unique_ptr<emp::Integer[]> INPUT = std::make_unique<emp::Integer[]>(n);
-  std::unique_ptr<emp::Integer[]> INDEX = std::make_unique<emp::Integer[]>(n);
-
-  std::unique_ptr<emp::Integer[]> MIN_TOPK =
-      std::make_unique<emp::Integer[]>(k);
-  std::unique_ptr<emp::Integer[]> MIN_ID = std::make_unique<emp::Integer[]>(k);
-
-  // Use for test
-
-  for (int i = 0; i < n; ++i) {
-    input[i] &= item_mask;
-    index[i] &= id_bits;
-
-    A[i] = Integer(item_bits, input[i], ALICE);
-    B[i] = Integer(item_bits, input[i], BOB);
-
-    A_idx[i] = Integer(id_bits, index[i], ALICE);
-    B_idx[i] = Integer(id_bits, index[i], BOB);
-
-    INDEX[i] = A_idx[i] + B_idx[i];
-    INPUT[i] = A[i] + B[i];
-  }
-
-  sanns::gc::Discard(INPUT.get(), n, discard_bits);
-  sanns::gc::Naive_topk(INPUT.get(), INDEX.get(), n, k, MIN_TOPK.get(),
-                        MIN_ID.get());
-
-  for (int i = 0; i < k; i++) {
-    // gc_res[i] = MIN_TOPK[i].reveal<int32_t>(PUBLIC);
-    gc_id[i] = MIN_ID[i].reveal<int32_t>(ALICE);
-  }
-  return gc_id;
-}
-
-std::vector<int32_t> gc_topk(spu::NdArrayRef& value, spu::NdArrayRef& index,
-                             std::vector<int64_t>& g_bin_num,
-                             std::vector<int64_t>& g_k_number) {
+std::vector<uint32_t> GcTopk(spu::NdArrayRef& value, spu::NdArrayRef& index,
+                             const std::vector<int64_t>& g_bin_num,
+                             const std::vector<int64_t>& g_k_number,
+                             size_t bw_value, size_t bw_discard,
+                             size_t bw_index) {
   int64_t sum = 0;
   int64_t sum_k = 0;
   for (auto& i : g_bin_num) {
@@ -142,7 +107,7 @@ std::vector<int32_t> gc_topk(spu::NdArrayRef& value, spu::NdArrayRef& index,
   for (auto& i : g_k_number) {
     sum_k += i;
   }
-  std::vector<int32_t> res(sum_k);
+  std::vector<uint32_t> res(sum_k);
 
   SPU_ENFORCE_EQ(value.numel(), sum);
   SPU_ENFORCE_EQ(g_bin_num.size(), g_k_number.size());
@@ -162,7 +127,14 @@ std::vector<int32_t> gc_topk(spu::NdArrayRef& value, spu::NdArrayRef& index,
       std::vector<uint32_t> input_index(bin);
       memcpy(&input_value[0], &xval[now_bin], bin * sizeof(uint32_t));
       memcpy(&input_index[0], &xidx[now_bin], bin * sizeof(uint32_t));
-      auto topk_id = naive_topk(bin, k, bw, 0, bw, input_value, input_index);
+      auto start = std::chrono::system_clock::now();
+      auto topk_id = sanns::gc::NaiveTopK(bin, k, bw_value, bw_discard,
+                                          bw_index, input_value, input_index);
+
+      auto end = std::chrono::system_clock::now();
+      const DurationMillis topk_time = end - start;
+      // std::cout << "Time: " << topk_time.count() << std::endl;
+
       memcpy(&res[now_k], topk_id.data(), k * sizeof(uint32_t));
       now_bin += bin;
       now_k += k;
@@ -171,134 +143,348 @@ std::vector<int32_t> gc_topk(spu::NdArrayRef& value, spu::NdArrayRef& index,
   return res;
 };
 
-void pir_client(std::vector<uint32_t> querys, uint32_t ele_number,
-                yacl::link::context lctx) {
-  auto batch_number = querys.size();
+spu::seal_pir::MultiQueryClient PrepareMpirClient(
+    size_t batch_number, uint32_t ele_number, uint32_t ele_size,
+    std::shared_ptr<yacl::link::Context>& lctx) {
   double factor = 1.5;
   size_t hash_num = 3;
   spu::psi::CuckooIndex::Options cuckoo_params{batch_number, 0, hash_num,
                                                factor};
   // cuckoo hash parms
-  // NOTE: only for test
-  for (auto q& : query) {
-    q = q % ele_number;
-    SPU_ENFORCE_LE(q, ele_number);
-  }
   spu::psi::SodiumCurve25519Cryptor c25519_cryptor;
-  std::future<std::vector<uint8_t>> ke_func_client =
-      std::async([&] { return c25519_cryptor0.KeyExchange(lctx); });
-  std::vector<uint8_t> seed_client = ke_func_client.get();
-  spu::seal_pir::MultiQuery options{{
-                                        pir_poly_degree,
-                                        ele_number,
-                                        8000,
-                                    },
-                                    batch_number};
+
+  std::vector<uint8_t> seed_client = c25519_cryptor.KeyExchange(lctx);
+  spu::seal_pir::MultiQueryOptions options{{N, ele_number, ele_size, 0, logt},
+                                           batch_number};
+  spu::seal_pir::MultiQueryClient mpir_client(options, cuckoo_params,
+                                              seed_client);
+  mpir_client.SendGaloisKeys(lctx);
+  mpir_client.SendPublicKey(lctx);
+  return mpir_client;
 }
 
-void pir_server() {
-  auto batch_number = querys.size();
+std::vector<uint8_t> GenerateDbData(size_t element_number,
+                                    size_t element_size) {
+  SPDLOG_INFO("DB: element number:{} element size:{}", element_number,
+              element_size);
+  std::vector<uint8_t> db_data(element_number * element_size * 4);
+  std::vector<uint32_t> db_raw_data(element_number * element_size);
+
+  std::random_device rd;
+
+  std::mt19937 gen(rd());
+
+  for (uint64_t i = 0; i < element_number; i++) {
+    for (uint64_t j = 0; j < element_size; j++) {
+      auto val = rand() % 512;
+      db_raw_data[(i * element_size) + j] = val == 0 ? 1 : val;
+    }
+  }
+  memcpy(db_data.data(), db_raw_data.data(), element_number * element_size * 4);
+
+  return db_data;
+}
+
+spu::seal_pir::MultiQueryServer PrepareMpirServer(
+    size_t batch_number, size_t ele_number, size_t ele_size,
+    std::shared_ptr<yacl::link::Context>& lctx) {
+  auto db_bytes = GenerateDbData(ele_number, ele_size);
   double factor = 1.5;
   size_t hash_num = 3;
   spu::psi::CuckooIndex::Options cuckoo_params{batch_number, 0, hash_num,
                                                factor};
 
-  // TODO(ljy):preprocessing
-  std::vector<std::vector<uint32_t>> point_data(
-      cluster_number, std::vector<uint32_t>(max_c_id_num * dims, 1));
+  spu::psi::SodiumCurve25519Cryptor c25519_cryptor;
 
-  std::future<std::vector<uint8_t>> ke_func_server =
-      std::async([&] { return c25519_cryptor0.KeyExchange(lctx); });
-  std::vector<uint8_t> seed_client = ke_func_server.get();
+  std::vector<uint8_t> seed_server = c25519_cryptor.KeyExchange(lctx);
+  spu::seal_pir::MultiQueryOptions options{{N, ele_number, ele_size, 0, logt},
+                                           batch_number};
+  spu::seal_pir::MultiQueryServer mpir_server(options, cuckoo_params,
+                                              seed_server);
+
+  mpir_server.SetDatabase(db_bytes);
+  mpir_server.RecvGaloisKeys(lctx);
+  mpir_server.RecvPublicKey(lctx);
+  return mpir_server;
 }
 
 int main(int argc, char** argv) {
   // TODO(ljy): add command line operations
-  llvm::cl::ParseCommandLineOptions(argc, argv);
-  const size_t N = 4096;
-  const size_t compare_radix = 4;
-  uint32_t num_points = 130000;
-  int64_t bins_number = 1252;
-  int64_t bins_item = 120;
-  std::vector<int64_t> group_bin_number = {458, 270, 178, 84, 262};
-  std::vector<int64_t> group_k_number = {50, 31, 19, 13, 10};
 
+  llvm::cl::ParseCommandLineOptions(argc, argv);
+  yacl::set_num_threads(72);
+
+  // Argmin:
+  int64_t total_bin_number = 0;
+  int64_t max_bin_size = 0;
+  for (size_t i = 0; i < group_k_number.size(); i++) {
+    total_bin_number += group_bin_number[i];
+    auto bin_size =
+        std::ceil(static_cast<double>(k_c[i]) / group_bin_number[i]);
+    max_bin_size = max_bin_size > bin_size ? max_bin_size : bin_size;
+  }
+  SPDLOG_INFO("Total bin number (batch size of argmin): {} , Max bin size: {}",
+              total_bin_number, max_bin_size);
+
+  // pir parms calculate:
+  // pir: query batch size
+  size_t batch_size = 0;
+  // pir: total number number of elements
+  size_t cluster_num = 0;
+  for (size_t i = 0; i < group_k_number.size() - 1; i++) {
+    batch_size += group_k_number[i];
+    cluster_num += k_c[i];
+  }
+
+  // p, ID(p), p^2
+  size_t ele_size = (dims + 2) * max_cluster_points;
+
+  SPDLOG_INFO(
+      "Batch query size: {}, Cluster size: , Element size (coeff size): {}",
+      batch_size, cluster_num, ele_size);
+
+  size_t cluster_id_bw = std::ceil(std::log2(cluster_num));
+
+  size_t id_bw = std::ceil(std::log2(total_points_num));
+
+  // context init
   auto hctx = MakeSPUContext();
   auto kctx = std::make_shared<spu::KernelEvalContext>(hctx.get());
   auto lctx = hctx->lctx();
   auto rank = Rank.getValue();
 
+  // prepare ferret-ot
   auto* comm = kctx->getState<spu::mpc::Communicator>();
   auto* ot_state = kctx->getState<spu::mpc::cheetah::CheetahOTState>();
   ot_state->LazyInit(comm, 0);
-  // spu::mpc::cheetah::InitOTState(kctx.get(), 2048);
 
-  SPDLOG_INFO("Prepare done!");
-
-  spu::NdArrayRef dis;
-  std::cout << "test" << std::endl;
-  spu::NdArrayRef index;
+  // client
   if (rank == 0) {
+    // prepare mpir client
+    auto mpir_client =
+        PrepareMpirClient(batch_size, cluster_num, ele_size, lctx);
+
+    // prepare distance compute client
+    // (HE parameters for distance calculation are independent of the PIR)
+    DisClient dis_client(N, logt, lctx);
+    dis_client.SendPublicKey();
+
+    emp::NetIO* gc_io = new emp::NetIO(rank == ALICE ? nullptr : "127.0.0.1",
+                                       EmpPort.getValue());
+    auto e2e_gc = gc_io->counter;
+    auto e2e_lx = lctx->GetStats()->sent_bytes.load();
+
+    auto total_time_s = std::chrono::system_clock::now();
+    // Distance Compute
     auto r0 = lctx->GetStats()->sent_actions.load();
     auto c0 = lctx->GetStats()->sent_bytes.load();
     auto q = ReadQuery(dims);
-    DisClient dis_client(N, num_points, dims, lctx);
     dis_client.GenerateQuery(q);
-    dis = dis_client.RecvReply({bins_number, bins_item});
+    auto dis =
+        dis_client.RecvReply({total_bin_number, max_bin_size}, cluster_num);
     auto r1 = lctx->GetStats()->sent_actions.load();
     auto c1 = lctx->GetStats()->sent_bytes.load();
-
-    SPDLOG_INFO("Distance : sent actions: {}, comm cost: {} KB", r1 - r0,
+    auto distance_cmp_e = std::chrono::system_clock::now();
+    const DurationMillis dis_cmp_time = distance_cmp_e - total_time_s;
+    SPDLOG_INFO("Distance cmp time: {} ms", dis_cmp_time.count());
+    SPDLOG_INFO("Distance client sent actions: {}, comm: {} KB", r1 - r0,
                 (c1 - c0) / 1024.0);
-    index = spu::mpc::ring_zeros(spu::FM32, {bins_number, bins_item});
+
+    auto index =
+        spu::mpc::ring_zeros(spu::FM32, {total_bin_number, max_bin_size});
+
+    auto argmax_r0 = lctx->GetStats()->sent_actions.load();
+    auto argmax_c0 = lctx->GetStats()->sent_bytes.load();
+
+    BatchArgmaxProtocol batch_argmax(kctx, compare_radix);
+    // Index and value uint32_t
+    auto _out = batch_argmax.ComputeWithIndex(dis, index, logt,
+                                              total_bin_number, max_bin_size);
+
+    auto argmax_e = std::chrono::system_clock::now();
+    const DurationMillis argmax_time = argmax_e - distance_cmp_e;
+    SPDLOG_INFO("Argmax cmp time: {} ms", argmax_time.count());
+
+    auto argmax_r1 = lctx->GetStats()->sent_actions.load();
+    auto argmax_c1 = lctx->GetStats()->sent_bytes.load();
+    SPDLOG_INFO("Argmax client sent actions: {}, comm: {} KB",
+                argmax_r1 - argmax_r0, (argmax_c1 - argmax_c0) / 1024.0);
+
+    auto max_value = _out[0];
+    auto max_index = _out[1];
+
+    emp::setup_semi_honest(gc_io, 2 - rank);
+    gc_io->flush();
+    size_t initial_counter = gc_io->counter;
+    auto topk_id = GcTopk(max_value, max_index, group_bin_number,
+                          group_k_number, logt, cluster_dc_bits, cluster_id_bw);
+
+    auto gc_topk_e = std::chrono::system_clock::now();
+    const DurationMillis gc_topk_time = gc_topk_e - argmax_e;
+    SPDLOG_INFO("Gc topk cmp time: {} ms", gc_topk_time.count());
+
+    size_t naive_topk_comm = gc_io->counter - initial_counter;
+    SPDLOG_INFO("Communication for cluster topk: {} KB",
+                naive_topk_comm / 1024.0);
+
+    std::vector<uint64_t> pir_query(batch_size, 0);
+    for (size_t i = 0; i < batch_size; i++) {
+      pir_query[i] = topk_id[i];
+      SPU_ENFORCE(pir_query[i] < cluster_num);
+    }
+
+    size_t pir_c0 = lctx->GetStats()->sent_bytes.load();
+    auto pir_res = mpir_client.DoMultiPirQuery(lctx, pir_query, true);
+    size_t pir_c1 = lctx->GetStats()->sent_bytes.load();
+
+    auto pir_e = std::chrono::system_clock::now();
+    const DurationMillis pir_time = pir_e - gc_topk_e;
+    SPDLOG_INFO("PIR cmp time: {} ms", pir_time.count());
+    SPDLOG_INFO("PIR client query comm: {} KB", (pir_c1 - pir_c0) / 1024.0);
+    auto num_pir_points = pir_res.size() * max_cluster_points + 10;
+
+    auto d2_start = lctx->GetStats()->sent_bytes.load();
+    auto point_dis = dis_client.RecvReply(num_pir_points);
+    std::vector<uint32_t> pir_point_ids(num_pir_points);
+    auto d2_end = lctx->GetStats()->sent_bytes.load();
+    SPDLOG_INFO("Point distance comm: {} KB", (d2_end - d2_start) / 1024.0);
+
+    auto dis_e = std::chrono::system_clock::now();
+    const DurationMillis dis2_time = dis_e - pir_e;
+    SPDLOG_INFO("Dis 2 cmp time: {} ms", dis2_time.count());
+
+    gc_io->flush();
+    auto end_topk0 = gc_io->counter;
+    gc::NaiveTopK(num_pir_points, topk_k, logt, pointer_dc_bits, id_bw,
+                  point_dis, pir_point_ids);
+    auto end_topk1 = gc_io->counter;
+
+    auto end_topk_e = std::chrono::system_clock::now();
+    const DurationMillis end_topk_time = end_topk_e - pir_e;
+    SPDLOG_INFO("Topk cmp time: {} ms", end_topk_time.count());
+
+    SPDLOG_INFO("End topk {}-{} comm: {} KB", num_pir_points, topk_k,
+                (end_topk1 - end_topk0) / 1024.0);
+    emp::finalize_semi_honest();
+
+    auto total_time_e = std::chrono::system_clock::now();
+
+    const DurationMillis total_time = total_time_e - total_time_s;
+    SPDLOG_INFO("Total time: {} ms", total_time.count());
+
+    auto e2e_gc_end = gc_io->counter;
+    auto e2e_lx_end = lctx->GetStats()->sent_bytes.load();
+    SPDLOG_INFO("Total comm: {} MB",
+                (e2e_gc_end - e2e_gc + e2e_lx_end - e2e_lx) / 1024.0 / 1024.0);
   } else {
+    // server
+    auto mpir_server =
+        PrepareMpirServer(batch_size, cluster_num, ele_size, lctx);
+
+    DisServer dis_server(N, logt, lctx);
+    dis_server.RecvPublicKey();
+
+    auto total_time_s = std::chrono::system_clock::now();
+    emp::NetIO* gc_io = new emp::NetIO(rank == ALICE ? nullptr : "127.0.0.1",
+                                       EmpPort.getValue());
+    auto e2e_gc = gc_io->counter;
+    auto e2e_lx = lctx->GetStats()->sent_bytes.load();
+
+    // TODO(ljy): shuffle the points?
     auto r0 = lctx->GetStats()->sent_actions.load();
     auto c0 = lctx->GetStats()->sent_bytes.load();
-
-    DisServer dis_server(N, lctx);
-    // TODO(ljy): shuffle the points?
-    auto ps = ReadClusterPoint(num_points, dims);
+    auto ps = ReadClusterPoint(cluster_num, dims);
     auto q = dis_server.RecvQuery(dims);
-    dis = dis_server.DoDistanceCmp(ps, q, {bins_number, bins_item});
+    auto dis =
+        dis_server.DoDistanceCmp(ps, q, {total_bin_number, max_bin_size});
 
     auto r1 = lctx->GetStats()->sent_actions.load();
     auto c1 = lctx->GetStats()->sent_bytes.load();
-
-    SPDLOG_INFO("Distance : sent actions: {}, comm cost: {} KB", r1 - r0,
+    auto distance_cmp_e = std::chrono::system_clock::now();
+    const DurationMillis dis_cmp_time = distance_cmp_e - total_time_s;
+    SPDLOG_INFO("Distance cmp time: {} ms", dis_cmp_time.count());
+    SPDLOG_INFO("Distance server sent actions: {}, comm: {} KB", r1 - r0,
                 (c1 - c0) / 1024.0);
 
-    index = spu::mpc::ring_randbit(spu::FM32, {bins_number, bins_item});
+    auto index = spu::mpc::ring_rand_range(
+        spu::FM32, {total_bin_number, max_bin_size}, 1, cluster_num);
+
+    auto argmax_r0 = lctx->GetStats()->sent_actions.load();
+    auto argmax_c0 = lctx->GetStats()->sent_bytes.load();
+
+    BatchArgmaxProtocol batch_argmax(kctx, compare_radix);
+    auto _out = batch_argmax.ComputeWithIndex(dis, index, logt,
+                                              total_bin_number, max_bin_size);
+
+    auto argmax_r1 = lctx->GetStats()->sent_actions.load();
+    auto argmax_c1 = lctx->GetStats()->sent_bytes.load();
+    SPDLOG_INFO("Argmax server sent actions: {}, comm cost: {} KB",
+                argmax_r1 - argmax_r0, (argmax_c1 - argmax_c0) / 1024.0);
+
+    auto argmax_e = std::chrono::system_clock::now();
+    const DurationMillis argmax_time = argmax_e - distance_cmp_e;
+    SPDLOG_INFO("Argmax cmp time: {} ms", argmax_time.count());
+
+    auto max_value = _out[0];
+    auto max_index = _out[1];
+
+    emp::setup_semi_honest(gc_io, 2 - rank);
+    size_t initial_counter = gc_io->counter;
+    gc_io->flush();
+    auto topk_id = GcTopk(max_value, max_index, group_bin_number,
+                          group_k_number, logt, cluster_dc_bits, cluster_id_bw);
+
+    auto gc_topk_e = std::chrono::system_clock::now();
+    const DurationMillis gc_topk_time = gc_topk_e - argmax_e;
+    SPDLOG_INFO("Gc topk cmp time: {} ms", gc_topk_time.count());
+
+    size_t naive_topk_comm = gc_io->counter - initial_counter;
+    SPDLOG_INFO("Communication for cluster topk: {} KB",
+                naive_topk_comm / 1024.0);
+
+    gc_io->flush();
+    size_t pir_c0 = lctx->GetStats()->sent_bytes.load();
+    auto pir_res = mpir_server.DoMultiPirAnswer(lctx, true);
+    size_t pir_c1 = lctx->GetStats()->sent_bytes.load();
+    SPDLOG_INFO("PIR server response comm: {} KB", (pir_c1 - pir_c0) / 1024.0);
+    auto pir_e = std::chrono::system_clock::now();
+    const DurationMillis pir_time = pir_e - gc_topk_e;
+    SPDLOG_INFO("PIR cmp time: {} ms", pir_time.count());
+
+    auto num_pir_points = max_cluster_points * pir_res.size() + 10;
+    std::vector<std::vector<uint32_t>> r(num_pir_points,
+                                         std::vector<uint32_t>(dims, 0));
+    auto d2_start = lctx->GetStats()->sent_bytes.load();
+    auto point_dis = dis_server.DoDistanceCmp(r, q);
+    auto d2_end = lctx->GetStats()->sent_bytes.load();
+    SPDLOG_INFO("Point distance comm: {} KB", (d2_end - d2_start) / 1024.0);
+    auto dis_e = std::chrono::system_clock::now();
+    const DurationMillis dis2_time = dis_e - pir_e;
+    SPDLOG_INFO("Dis 2 cmp time: {} ms", dis2_time.count());
+
+    std::vector<uint32_t> pir_point_ids(num_pir_points);
+    auto end_topk0 = gc_io->counter;
+    gc_io->flush();
+    gc::NaiveTopK(num_pir_points, topk_k, logt, pointer_dc_bits, id_bw,
+                  point_dis, pir_point_ids);
+    auto end_topk_e = std::chrono::system_clock::now();
+    const DurationMillis end_topk_time = end_topk_e - pir_e;
+    SPDLOG_INFO("Topk cmp time: {} ms", end_topk_time.count());
+
+    auto end_topk1 = gc_io->counter;
+    SPDLOG_INFO("End topk {}-{} comm: {} KB", num_pir_points, topk_k,
+                (end_topk1 - end_topk0) / 1024.0);
+
+    emp::finalize_semi_honest();
+    auto total_time_e = std::chrono::system_clock::now();
+
+    const DurationMillis total_time = total_time_e - total_time_s;
+    SPDLOG_INFO("Total time: {} ms", total_time.count());
+    auto e2e_gc_end = gc_io->counter;
+    auto e2e_lx_end = lctx->GetStats()->sent_bytes.load();
+    SPDLOG_INFO("Total comm: {} MB",
+                (e2e_gc_end - e2e_gc + e2e_lx_end - e2e_lx) / 1024.0 / 1024.0);
   }
-  auto r0 = lctx->GetStats()->sent_actions.load();
-  auto c0 = lctx->GetStats()->sent_bytes.load();
-
-  BatchArgmaxProtocol batch_argmax(kctx, compare_radix);
-  auto _out =
-      batch_argmax.ComputeWithIndex(dis, index, bw, bins_number, bins_item);
-
-  auto r1 = lctx->GetStats()->sent_actions.load();
-  auto c1 = lctx->GetStats()->sent_bytes.load();
-  SPDLOG_INFO("Argmax : sent actions: {}, comm cost: {} KB", r1 - r0,
-              (c1 - c0) / 1024.0);
-
-  auto max_value = _out[0];
-  auto max_index = _out[1];
-
-  emp::NetIO* gc_io =
-      new emp::NetIO(rank == ALICE ? nullptr : "127.0.0.1", EmpPort.getValue());
-  emp::setup_semi_honest(gc_io, rank + 1);
-
-  size_t initial_counter = gc_io->counter;
-  auto topk_id =
-      gc_topk(max_value, max_index, group_bin_number, group_k_number);
-
-  size_t naive_topk_comm = gc_io->counter - initial_counter;
-  SPDLOG_INFO("Communication for test_naive_topk: {} KB",
-              naive_topk_comm / 1024.0);
-  emp::finalize_semi_honest();
-  // DISPATCH_ALL_FIELDS(spu::FM32, " ", [&]() {
-  //
-  // });
 
   return 0;
 }

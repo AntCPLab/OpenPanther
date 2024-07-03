@@ -40,7 +40,7 @@ void MultiQueryServer::GenerateSimpleHash() {
 
   size_t num_bins = cuckoo_params_.NumBins();
 
-  SPDLOG_INFO("element_number:{}", query_options_.seal_options.element_number);
+  SPDLOG_INFO("Element_number:{}", query_options_.seal_options.element_number);
 
   for (size_t idx = 0; idx < query_options_.seal_options.element_number;
        ++idx) {
@@ -88,6 +88,19 @@ void MultiQueryServer::SetDatabase(yacl::ByteContainerView db_bytes) {
   }
 }
 
+void MultiQueryServer::RecvPublicKey(
+    const std::shared_ptr<yacl::link::Context> &link_ctx) {
+  yacl::Buffer pubkey_buffer = link_ctx->Recv(
+      link_ctx->NextRank(),
+      fmt::format("recv public key from rank-{}", link_ctx->Rank()));
+
+  std::string pubkey_str(pubkey_buffer.size(), '\0');
+  std::memcpy(pubkey_str.data(), pubkey_buffer.data(), pubkey_buffer.size());
+  auto pubkey =
+      pir_server_[0]->DeSerializeSealObject<seal::PublicKey>(pubkey_str);
+  SetPublicKeys(pubkey);
+}
+
 void MultiQueryServer::RecvGaloisKeys(
     const std::shared_ptr<yacl::link::Context> &link_ctx) {
   yacl::Buffer galkey_buffer = link_ctx->Recv(
@@ -100,6 +113,7 @@ void MultiQueryServer::RecvGaloisKeys(
       pir_server_[0]->DeSerializeSealObject<seal::GaloisKeys>(galkey_str);
   SetGaloisKeys(galkey);
 }
+
 void MultiQueryServer::DoMultiPirAnswer(
     const std::shared_ptr<yacl::link::Context> &link_ctx) {
   auto c0 = link_ctx->GetStats()->recv_bytes.load();
@@ -110,8 +124,8 @@ void MultiQueryServer::DoMultiPirAnswer(
 
   auto c1 = link_ctx->GetStats()->recv_bytes.load();
   const DurationMillis recv_time = recv_end - answer_time;
-  std::cout << "recv time: " << recv_time.count() << " ms" << std::endl;
-  std::cout << "Query recv comm: " << (c1 - c0) / 1024.0 << " KB" << std::endl;
+  SPDLOG_INFO("recv time: {} ms", recv_time.count());
+  SPDLOG_INFO("Query recv comm: {} KB", (c1 - c0) / 1024.0);
 
   SealMultiPirQueryProto multi_query_proto;
   multi_query_proto.ParseFromArray(multi_query_buffer.data(),
@@ -141,7 +155,7 @@ void MultiQueryServer::DoMultiPirAnswer(
       });
   const auto com_end = std::chrono::system_clock::now();
   const DurationMillis com_time = com_end - compute_time;
-  std::cout << "Compute time: " << com_time.count() << "ms" << std::endl;
+  SPDLOG_INFO("PIR: Compute time: {} ms", com_time.count());
 
   const auto proto_start = std::chrono::system_clock::now();
   SealMultiPirAnswerProto mpir_answer_reply_proto;
@@ -159,7 +173,7 @@ void MultiQueryServer::DoMultiPirAnswer(
 
   const auto proto_end = std::chrono::system_clock::now();
   const DurationMillis proto_time = proto_end - proto_start;
-  std::cout << "Protobuffer: " << proto_time.count() << " ms" << std::endl;
+  SPDLOG_INFO("PIR: Transfer to Protobuffer: {} ms", proto_time.count());
 
   const auto send_start = std::chrono::system_clock::now();
   auto s0 = link_ctx->GetStats()->sent_bytes.load();
@@ -171,12 +185,12 @@ void MultiQueryServer::DoMultiPirAnswer(
 
   const auto send_end = std::chrono::system_clock::now();
   const DurationMillis send_time = send_end - send_start;
-  std::cout << "Send time: " << send_time.count() << "ms" << std::endl;
+  SPDLOG_INFO("PIR: Send time: {} ms", send_time.count());
+  SPDLOG_INFO("PIR: Query sent comm: {} KB", (s1 - s0) / 1024.0);
 
-  std::cout << "Query sent comm: " << (s1 - s0) / 1024.0 << " KB" << std::endl;
   const auto answer_time_end = std::chrono::system_clock::now();
   const DurationMillis time = answer_time_end - answer_time;
-  std::cout << "Answer generate: " << time.count() << " ms" << std::endl;
+  SPDLOG_INFO("PIR: Answer generate: {} ms", time.count());
 }
 
 std::vector<std::vector<uint32_t>> MultiQueryServer::DoMultiPirAnswer(
@@ -191,8 +205,9 @@ std::vector<std::vector<uint32_t>> MultiQueryServer::DoMultiPirAnswer(
 
   auto c1 = link_ctx->GetStats()->recv_bytes.load();
   const DurationMillis recv_time = recv_end - answer_time;
-  std::cout << "recv time: " << recv_time.count() << " ms" << std::endl;
-  std::cout << "Query recv comm: " << (c1 - c0) / 1024.0 << " KB" << std::endl;
+
+  SPDLOG_INFO("PIR: Recv time: {} ms", recv_time.count());
+  SPDLOG_INFO("PIR: Query recv comm: {} KB", (c1 - c0) / 1024.0);
 
   SealMultiPirQueryProto multi_query_proto;
   multi_query_proto.ParseFromArray(multi_query_buffer.data(),
@@ -225,7 +240,7 @@ std::vector<std::vector<uint32_t>> MultiQueryServer::DoMultiPirAnswer(
 
   const auto com_end = std::chrono::system_clock::now();
   const DurationMillis com_time = com_end - compute_time;
-  std::cout << "Compute time: " << com_time.count() << "ms" << std::endl;
+  SPDLOG_INFO("PIR: Compute time: {} ms", com_time.count());
 
   const auto proto_start = std::chrono::system_clock::now();
   SealMultiPirAnswerProto mpir_answer_reply_proto;
@@ -243,7 +258,7 @@ std::vector<std::vector<uint32_t>> MultiQueryServer::DoMultiPirAnswer(
 
   const auto proto_end = std::chrono::system_clock::now();
   const DurationMillis proto_time = proto_end - proto_start;
-  std::cout << "Protobuffer: " << proto_time.count() << " ms" << std::endl;
+  SPDLOG_INFO("PIR: Transfer to Protobuffer: {} ms", proto_time.count());
 
   const auto send_start = std::chrono::system_clock::now();
   auto s0 = link_ctx->GetStats()->sent_bytes.load();
@@ -255,12 +270,14 @@ std::vector<std::vector<uint32_t>> MultiQueryServer::DoMultiPirAnswer(
 
   const auto send_end = std::chrono::system_clock::now();
   const DurationMillis send_time = send_end - send_start;
-  std::cout << "Send time: " << send_time.count() << "ms" << std::endl;
 
-  std::cout << "Query sent comm: " << (s1 - s0) / 1024.0 << " KB" << std::endl;
+  SPDLOG_INFO("PIR: Send time: {} ms", send_time.count());
+  SPDLOG_INFO("PIR: Query sent comm: {} KB", (s1 - s0) / 1024.0);
+
   const auto answer_time_end = std::chrono::system_clock::now();
   const DurationMillis time = answer_time_end - answer_time;
-  std::cout << "Answer generate:" << time.count() << " ms" << std::endl;
+
+  SPDLOG_INFO("PIR: Answer generate: {} ms", time.count());
   return random_mask;
 }
 
@@ -359,6 +376,19 @@ std::vector<MultiQueryItem> MultiQueryClient::GenerateBatchQueryIndex(
   return multi_query;
 }
 
+void MultiQueryClient::SendPublicKey(
+    const std::shared_ptr<yacl::link::Context> &link_ctx) {
+  seal::PublicKey pubkey = pir_client_->GetPublicKey();
+
+  std::string pubkey_str =
+      pir_client_->SerializeSealObject<seal::PublicKey>(pubkey);
+  yacl::Buffer pubkey_buffer(pubkey_str.data(), pubkey_str.length());
+
+  link_ctx->SendAsync(
+      link_ctx->NextRank(), pubkey_buffer,
+      fmt::format("send public key to rank-{}", link_ctx->Rank()));
+}
+
 void MultiQueryClient::SendGaloisKeys(
     const std::shared_ptr<yacl::link::Context> &link_ctx) {
   seal::GaloisKeys galkey = pir_client_->GenerateGaloisKeys();
@@ -370,6 +400,94 @@ void MultiQueryClient::SendGaloisKeys(
   link_ctx->SendAsync(
       link_ctx->NextRank(), galkey_buffer,
       fmt::format("send galios key to rank-{}", link_ctx->Rank()));
+}
+
+std::vector<std::vector<uint32_t>> MultiQueryClient::DoMultiPirQuery(
+    const std::shared_ptr<yacl::link::Context> &link_ctx,
+    const std::vector<size_t> &multi_query_index, bool H2A) {
+  YACL_ENFORCE(H2A == true);
+  const auto query_s = std::chrono::system_clock::now();
+  std::vector<MultiQueryItem> multi_query =
+      GenerateBatchQueryIndex(multi_query_index);
+
+  test_query = multi_query;
+
+  const auto query_stop = std::chrono::system_clock::now();
+  const DurationMillis batch_time = query_stop - query_s;
+
+  SPDLOG_INFO("Hash time: {} ms", batch_time.count());
+
+  SealMultiPirQueryProto multi_query_proto;
+
+  std::vector<SealPirQueryProto *> query_proto_vec(multi_query.size());
+  for (size_t idx = 0; idx < multi_query.size(); ++idx) {
+    query_proto_vec[idx] = multi_query_proto.add_querys();
+  }
+
+  for (size_t idx = 0; idx < multi_query.size(); ++idx) {
+    std::vector<std::vector<seal::Ciphertext>> query_ciphers =
+        pir_client_->GenerateQuery(multi_query[idx].bin_item_index);
+
+    query_proto_vec[idx]->set_query_size(0);
+    query_proto_vec[idx]->set_start_pos(0);
+    for (auto &query_cipher : query_ciphers) {
+      ::spu::seal_pir::CiphertextsProto *ciphers_proto =
+          query_proto_vec[idx]->add_query_cipher();
+
+      for (size_t k = 0; k < query_cipher.size(); ++k) {
+        std::string cipher_bytes =
+            pir_client_->SerializeSealObject<seal::Ciphertext>(query_cipher[k]);
+
+        ciphers_proto->add_ciphers(cipher_bytes.data(), cipher_bytes.length());
+      }
+    }
+  }
+
+  auto s = multi_query_proto.SerializeAsString();
+  yacl::Buffer multi_query_buffer(s.data(), s.size());
+
+  const auto query_e = std::chrono::system_clock::now();
+  const DurationMillis query_time = query_e - query_s;
+  SPDLOG_INFO("Query compute time: {} ms", query_time.count());
+
+  link_ctx->SendAsync(
+      link_ctx->NextRank(), multi_query_buffer,
+      fmt::format("send multi pir query number:{}", multi_query.size()));
+
+  yacl::Buffer reply_buffer =
+      link_ctx->Recv(link_ctx->NextRank(), fmt::format("recv pir answer"));
+
+  SealMultiPirAnswerProto multi_answer_proto;
+  multi_answer_proto.ParseFromArray(reply_buffer.data(), reply_buffer.size());
+  // SPDLOG_INFO("multi_answer_proto size:{}",
+  // multi_answer_proto.answers_size());
+
+  YACL_ENFORCE((uint64_t)multi_answer_proto.answers_size() ==
+               multi_query.size());
+
+  std::vector<std::vector<uint32_t>> answers(multi_answer_proto.answers_size());
+  size_t answer_count = 0;
+  SPDLOG_INFO("Answer size: {}", multi_answer_proto.answers_size());
+
+  for (int idx = 0; idx < multi_answer_proto.answers_size(); ++idx) {
+    CiphertextsProto answer_proto = multi_answer_proto.answers(idx).answer();
+    std::vector<seal::Ciphertext> reply_ciphers =
+        pir_client_->DeSerializeCiphertexts(answer_proto);
+
+    seal::Plaintext query_plain = pir_client_->DecodeReply(reply_ciphers);
+
+    std::vector<uint32_t> plaintext_bytes = pir_client_->PlaintextToBytes(
+        query_plain, query_options_.seal_options.element_size);
+
+    answers[idx].resize(query_options_.seal_options.element_size);
+
+    answer_count++;
+
+    std::memcpy(answers[idx].data(), plaintext_bytes.data(),
+                query_options_.seal_options.element_size * 4);
+  }
+
+  return answers;
 }
 
 std::vector<std::vector<uint32_t>> MultiQueryClient::DoMultiPirQuery(
@@ -434,8 +552,30 @@ std::vector<std::vector<uint32_t>> MultiQueryClient::DoMultiPirQuery(
   // SPDLOG_INFO("multi_answer_proto size:{}",
   // multi_answer_proto.answers_size());
 
-  YACL_ENFORCE((uint64_t)multi_answer_proto.answers_size() ==
-               multi_query.size());
+  // YACL_ENFORCE((uint64_t)multi_answer_proto.answers_size() ==
+  //              multi_query.size());
+
+  // std::vector<std::vector<uint32_t>>
+  // answers(multi_answer_proto.answers_size()); size_t answer_count = 0;
+  // SPDLOG_INFO("Answer size: {}", multi_answer_proto.answers_size());
+
+  // for (int idx = 0; idx < multi_answer_proto.answers_size(); ++idx) {
+  //   CiphertextsProto answer_proto = multi_answer_proto.answers(idx).answer();
+  //   std::vector<seal::Ciphertext> reply_ciphers =
+  //       pir_client_->DeSerializeCiphertexts(answer_proto);
+
+  //   seal::Plaintext query_plain = pir_client_->DecodeReply(reply_ciphers);
+
+  //   std::vector<uint32_t> plaintext_bytes = pir_client_->PlaintextToBytes(
+  //       query_plain, query_options_.seal_options.element_size);
+
+  //   answers[idx].resize(query_options_.seal_options.element_size);
+
+  //   answer_count++;
+
+  //   std::memcpy(answers[idx].data(), plaintext_bytes.data(),
+  //               query_options_.seal_options.element_size * 4);
+  // }
 
   std::vector<std::vector<uint32_t>> answers(multi_query_index.size());
   size_t answer_count = 0;

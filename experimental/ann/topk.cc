@@ -99,4 +99,52 @@ void Approximate_topk(Integer *input, Integer *index, int len, int k, int l,
   delete[] bin_max;
   delete[] bin_max_id;
 }
+
+std::vector<int32_t> NaiveTopK(size_t n, size_t k, size_t item_bits,
+                               size_t discard_bits, size_t id_bits,
+                               std::vector<uint32_t> &input,
+                               std::vector<uint32_t> &index) {
+  std::vector<int32_t> gc_id(k);
+  int32_t item_mask = (1 << item_bits) - 1;
+  int32_t id_mask = (1 << id_bits) - 1;
+  std::unique_ptr<emp::Integer[]> A = std::make_unique<emp::Integer[]>(n);
+  std::unique_ptr<emp::Integer[]> B = std::make_unique<emp::Integer[]>(n);
+
+  std::unique_ptr<emp::Integer[]> A_idx = std::make_unique<emp::Integer[]>(n);
+  std::unique_ptr<emp::Integer[]> B_idx = std::make_unique<emp::Integer[]>(n);
+  std::unique_ptr<emp::Integer[]> INPUT = std::make_unique<emp::Integer[]>(n);
+  std::unique_ptr<emp::Integer[]> INDEX = std::make_unique<emp::Integer[]>(n);
+
+  std::unique_ptr<emp::Integer[]> MIN_TOPK =
+      std::make_unique<emp::Integer[]>(k);
+  std::unique_ptr<emp::Integer[]> MIN_ID = std::make_unique<emp::Integer[]>(k);
+
+  // Use for test
+
+  for (size_t i = 0; i < n; ++i) {
+    input[i] &= item_mask;
+    index[i] &= id_mask;
+
+    A[i] = Integer(item_bits, input[i], ALICE);
+    B[i] = Integer(item_bits, input[i], BOB);
+
+    A_idx[i] = Integer(id_bits, index[i], ALICE);
+    B_idx[i] = Integer(id_bits, index[i], BOB);
+  }
+
+  for (size_t i = 0; i < n; ++i) {
+    INDEX[i] = A_idx[i] + B_idx[i];
+    INPUT[i] = A[i] + B[i];
+  }
+  sanns::gc::Discard(INPUT.get(), n, discard_bits);
+  sanns::gc::Naive_topk(INPUT.get(), INDEX.get(), n, k, MIN_TOPK.get(),
+                        MIN_ID.get());
+
+  for (size_t i = 0; i < k; i++) {
+    // gc_res[i] = MIN_TOPK[i].reveal<int32_t>(PUBLIC);
+    gc_id[i] = MIN_ID[i].reveal<int32_t>(BOB);
+  }
+  return gc_id;
+}
+
 }  // namespace sanns::gc

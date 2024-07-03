@@ -1,6 +1,7 @@
 #include "batch_argmax_prot.h"
 
 #include "libspu/core/type_util.h"
+#include "libspu/mpc/cheetah/nonlinear/truncate_prot.h"
 #include "libspu/mpc/cheetah/ot/basic_ot_prot.h"
 #include "libspu/mpc/cheetah/ot/ot_util.h"
 #include "libspu/mpc/cheetah/state.h"
@@ -18,12 +19,14 @@ BatchArgmaxProtocol::BatchArgmaxProtocol(
 
 spu::NdArrayRef BatchArgmaxProtocol::Compute(const spu::NdArrayRef &inp,
                                              const int64_t bitwidth,
+                                             const int64_t shift,
                                              const size_t batch_size,
                                              const size_t max_size) {
   SPU_ENFORCE(inp.ndim() == 2);
   SPU_ENFORCE(inp.dim(0) == batch_size && inp.dim(1) == max_size);
   int64_t level_size = max_size;
-  auto tmp_res = inp;
+  auto tmp_res = spu::mpc::ring_rshift(inp, shift);
+  auto cmp_bw = bitwidth - shift;
   while (level_size != 1) {
     // std::cout << ctx_->sctx()->lctx()->GetStats()->sent_actions.load()
     //           << std::endl;
@@ -43,17 +46,33 @@ spu::NdArrayRef BatchArgmaxProtocol::Compute(const spu::NdArrayRef &inp,
                   cmp_size * tmp_res.elsize());
     });
     spu::mpc::ring_sub_(a_value, b_value);
-    spu::mpc::ring_bitmask_(a_value, 0, bitwidth);
+    spu::mpc::ring_bitmask_(a_value, 0, cmp_bw);
     // TODO(ljy): Add Index
     // spu::NdArrayRef sub_index(inp.eltype(), max_sub_size);
-    auto select_bits = DReLU(a_value, bitwidth);
+    auto select_bits = DReLU(a_value, cmp_bw);
     auto res = Select(select_bits, a_value);
     spu::mpc::ring_add_(res, b_value);
-    spu::mpc::ring_bitmask_(res, 0, bitwidth);
+    spu::mpc::ring_bitmask_(res, 0, cmp_bw);
     tmp_res = res;
     level_size = level_size / 2 + level_size % 2;
   }
   return tmp_res;
+}
+spu::NdArrayRef BatchArgmaxProtocol::TruncValue(spu::NdArrayRef &inp,
+                                                int64_t bitwidth,
+                                                int64_t shift) {
+  spu::NdArrayRef trun_value;
+  // auto trun_value = spu::mpc::cheetah::TiledDispatchOTFunc(
+  //     ctx_.get(), inp,
+  //     [&](const spu::NdArrayRef &input,
+  //         std::shared_ptr<spu::mpc::cheetah::BasicOTProtocols> &base_ot) {
+  //       spu::mpc::cheetah::TruncateProtocol trun_prot(base_ot);
+  //       spu::mpc::cheetah::TruncateProtocol::Meta meta;
+  //       meta.sign = spu::SignType::Positive;
+  //       meta.signed_arith = false;
+  //       meta.shift_bits = shift;
+  //     });
+  return trun_value;
 }
 
 std::vector<spu::NdArrayRef> BatchArgmaxProtocol::ComputeWithIndex(
@@ -143,6 +162,7 @@ std::vector<spu::NdArrayRef> BatchArgmaxProtocol::ComputeWithIndex(
   }
   return {tmp_res, tmp_idx};
 }
+
 spu::NdArrayRef BatchArgmaxProtocol::Select(spu::NdArrayRef &select_bits,
                                             spu::NdArrayRef &a) {
   // TODO: select value and index together

@@ -150,6 +150,9 @@
         "syncstream": "cpp",
         "thread": "cpp",
         "typeindex": "cpp",
-        "typeinfo": "cpp"
+        "typeinfo": "cpp",
+        "__locale": "cpp",
+        "__node_handle": "cpp",
+        "__verbose_abort": "cpp"
     }
 }

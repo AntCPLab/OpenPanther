@@ -709,8 +709,8 @@ std::vector<seal::Ciphertext> SealPirServer::GenerateReply(
 
   // int logt = std::floor(std::log2(enc_params_->plain_modulus().value()));
 
-  const auto expand_s = std::chrono::system_clock::now();
   for (uint32_t i = 0; i < nvec.size(); i++) {
+    // const auto expand_s = std::chrono::system_clock::now();
     std::vector<seal::Ciphertext> expanded_query;
 
     uint64_t n_i = nvec[i];
@@ -734,9 +734,9 @@ std::vector<seal::Ciphertext> SealPirServer::GenerateReply(
     YACL_ENFORCE(expanded_query.size() == n_i, "size mismatch!!! {}-{}",
                  expanded_query.size(), n_i);
 
-    const auto expand_e = std::chrono::system_clock::now();
-    const DurationMillis expand_time = expand_e - expand_s;
-    SPDLOG_INFO("Expand time: {} ms", expand_time.count());
+    // const auto expand_e = std::chrono::system_clock::now();
+    // const DurationMillis expand_time = expand_e - expand_s;
+    // SPDLOG_INFO("Expand time: {} ms", expand_time.count());
 
     yacl::parallel_for(
         0, expanded_query.size(), [&](int64_t begin, int64_t end) {
@@ -798,9 +798,11 @@ std::vector<seal::Ciphertext> SealPirServer::GenerateReply(
       // SPDLOG_INFO("Generate reply time: {}", g_reply_time.count());
       return intermediateCtxts;
     } else {
+      YACL_ENFORCE(nvec.size() == 2);
       intermediate_plain.clear();
       intermediate_plain.reserve(pir_params_.expansion_ratio * product);
       cur = &intermediate_plain;
+      H2A(intermediateCtxts, random);
 
       for (uint64_t rr = 0; rr < product; rr++) {
         seal::EncryptionParameters parms;
@@ -1409,7 +1411,7 @@ std::vector<uint32_t> SealPirClient::PlaintextToBytes(
 
 void SealPirClient::SendPublicKey(
     const std::shared_ptr<yacl::link::Context> &link_ctx) {
-  seal::PublicKey pubkey = public_key_;
+  seal::PublicKey pubkey = GetPublicKey();
 
   std::string pubkey_str = SerializeSealObject<seal::PublicKey>(pubkey);
   yacl::Buffer pubkey_buffer(pubkey_str.data(), pubkey_str.length());

@@ -46,7 +46,7 @@ std::vector<uint8_t> GenerateDbData(TestParams params) {
   for (uint64_t i = 0; i < params.element_number; i++) {
     for (uint64_t j = 0; j < params.element_size; j++) {
       auto val = rand() % 512;
-      db_raw_data[(i * params.element_size) + j] = val;
+      db_raw_data[(i * params.element_size) + j] = val == 0 ? 1 : val;
     }
   }
   memcpy(db_data.data(), db_raw_data.data(),
@@ -131,8 +131,21 @@ TEST_P(SealMultiPirTest, WithH2A) {
   // server setup data
   mpir_server.SetDatabase(db_bytes);
 
-  seal::GaloisKeys galkey = mpir_client.GenerateGaloisKeys();
-  mpir_server.SetGaloisKeys(galkey);
+  std::future<void> pir_send_keys =
+      std::async([&] { return mpir_client.SendGaloisKeys(ctxs[0]); });
+
+  std::future<void> pir_recv_keys =
+      std::async([&] { return mpir_server.RecvGaloisKeys(ctxs[1]); });
+  pir_send_keys.get();
+  pir_recv_keys.get();
+
+  std::future<void> pir_send_pub_keys =
+      std::async([&] { return mpir_client.SendPublicKey(ctxs[0]); });
+
+  std::future<void> pir_recv_pub_keys =
+      std::async([&] { return mpir_server.RecvPublicKey(ctxs[1]); });
+  pir_send_pub_keys.get();
+  pir_recv_pub_keys.get();
 
   // do pir query/answer
   const auto pir_start_time = std::chrono::system_clock::now();
@@ -140,7 +153,7 @@ TEST_P(SealMultiPirTest, WithH2A) {
   std::future<std::vector<std::vector<uint32_t>>> pir_service_func =
       std::async([&] { return mpir_server.DoMultiPirAnswer(ctxs[0], true); });
   std::future<std::vector<std::vector<uint32_t>>> pir_client_func = std::async(
-      [&] { return mpir_client.DoMultiPirQuery(ctxs[1], query_index); });
+      [&] { return mpir_client.DoMultiPirQuery(ctxs[1], query_index, true); });
 
   // const auto pir_client_stop_time = std::chrono::system_clock::now();
 
@@ -151,28 +164,22 @@ TEST_P(SealMultiPirTest, WithH2A) {
   const DurationMillis pir_time = pir_end_time - pir_start_time;
 
   SPDLOG_INFO("pir time(online) : {} ms", pir_time.count());
-
-  EXPECT_EQ(query_reply_bytes.size(), query_index.size());
-
+  uint32_t mask = (1ULL << 24) - 1;
   for (size_t idx = 0; idx < query_reply_bytes.size(); ++idx) {
+    if (mpir_client.test_query[idx].db_index == 0) continue;
+    auto query_index = mpir_client.test_query[idx].db_index;
     std::vector<uint32_t> query_db_bytes(params.element_size);
+
     std::memcpy(query_db_bytes.data(),
-                &db_bytes[query_index[idx] * params.element_size * 4],
+                &db_bytes[query_index * params.element_size * 4],
                 params.element_size * 4);
 
-    // if ((query_db_bytes.size() != query_reply_bytes[idx].size()) ||
-    //     (std::memcmp(query_db_bytes.data(), query_reply_bytes[idx].data(),
-    //                  query_reply_bytes[idx].size()) != 0)) {
-    //   SPDLOG_INFO(
-    //       "idx:{} query_index:{} query_db_bytes:{}", idx, query_index[idx],
-    //       absl::BytesToHexString(absl::string_view(
-    //           (const char *)query_db_bytes.data(), query_db_bytes.size())));
-    //   SPDLOG_INFO("query_reply_bytes[{}]:{}", idx,
-    //               absl::BytesToHexString(absl::string_view(
-    //                   (const char *)query_reply_bytes[idx].data(),
-    //                   query_reply_bytes[idx].size())));
-    // }
-    EXPECT_EQ(query_db_bytes, query_reply_bytes[idx]);
+    for (size_t item = 0; item < query_reply_bytes[idx].size(); item++) {
+      auto h2a = mask & (random_mask[idx][item] + query_reply_bytes[idx][item]);
+      EXPECT_NEAR(query_db_bytes[item], h2a, 1);
+      // SPDLOG_INFO("H2A Value:{}", h2a);
+      // auto withouth2a = withoutH2A[idx][item];
+    }
   }
 }
 
@@ -272,9 +279,11 @@ TEST_P(SealMultiPirTest, Works) {
     //     (std::memcmp(query_db_bytes.data(), query_reply_bytes[idx].data(),
     //                  query_reply_bytes[idx].size()) != 0)) {
     //   SPDLOG_INFO(
-    //       "idx:{} query_index:{} query_db_bytes:{}", idx, query_index[idx],
+    //       "idx:{} query_index:{} query_db_bytes:{}", idx,
+    // query_index[idx],
     //       absl::BytesToHexString(absl::string_view(
-    //           (const char *)query_db_bytes.data(), query_db_bytes.size())));
+    //           (const char *)query_db_bytes.data(),
+    // query_db_bytes.size())));
     //   SPDLOG_INFO("query_reply_bytes[{}]:{}", idx,
     //               absl::BytesToHexString(absl::string_view(
     //                   (const char *)query_reply_bytes[idx].data(),

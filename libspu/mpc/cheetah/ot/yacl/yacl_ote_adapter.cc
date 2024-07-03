@@ -199,7 +199,7 @@ void YaclFerretOTeAdapter::recv_cot(
 }
 
 void YaclFerretOTeAdapter::Bootstrap() {
-  std::cout << "Bootstrap()" << std::endl;
+  SPDLOG_INFO("Doing Ferret-OT Bootstrap now!");
   auto begin = std::chrono::high_resolution_clock::now();
   if (is_sender_) {
     yacl::UninitAlignedVector<uint128_t> send_ot(

@@ -8,9 +8,9 @@
 #include "libspu/mpc/utils/ring_ops.h"
 namespace sanns {
 
-DisClient::DisClient(size_t degree, uint32_t num_points, uint32_t points_dims,
-                     const std::shared_ptr<yacl::link::Context> &conn)
-    : num_points_(num_points), points_dims_(points_dims) {
+using DurationMillis = std::chrono::duration<double, std::milli>;
+DisClient::DisClient(size_t degree, size_t logt,
+                     const std::shared_ptr<yacl::link::Context> &conn) {
   degree_ = degree;
   seal_params_ =
       std::make_unique<seal::EncryptionParameters>(seal::scheme_type::bfv);
@@ -29,46 +29,78 @@ DisClient::DisClient(size_t degree, uint32_t num_points, uint32_t points_dims,
   conn_ = conn;
 }
 
-// DisClient::SendPublicKey();
+void DisClient::SendPublicKey() {
+  seal::PublicKey pubkey = GetPublicKey();
+
+  auto pubkey_buffer =
+      spu::mpc::cheetah::EncodeSEALObject<seal::PublicKey>(pubkey);
+
+  conn_->SendAsync(conn_->NextRank(), pubkey_buffer,
+                   fmt::format("send public key to rank-{}", conn_->Rank()));
+};
 
 std::vector<seal::Ciphertext> DisClient::GenerateQuery(
     std::vector<uint32_t> &q) {
   size_t q_size = q.size();
+  const auto query_s = std::chrono::system_clock::now();
   std::vector<seal::Ciphertext> enc_q(q_size);
   std::vector<seal::Plaintext> plain_q(
       q_size, seal::Plaintext(seal_params_->poly_modulus_degree()));
-  for (size_t i = 0; i < q_size; i++) {
-    plain_q[i][0] = q[i];
-    encryptor_->encrypt_symmetric(plain_q[i], enc_q[i]);
-  }
+  yacl::parallel_for(0, q_size, [&](size_t begin, size_t end) {
+    for (size_t i = begin; i < end; i++) {
+      plain_q[i][0] = q[i];
+      encryptor_->encrypt_symmetric(plain_q[i], enc_q[i]);
+    }
+  });
   std::vector<yacl::Buffer> q_buffer(q_size);
-  for (size_t i = 0; i < q_size; i++) {
-    q_buffer[i] = spu::mpc::cheetah::EncodeSEALObject(enc_q[i]);
-  }
+
+  yacl::parallel_for(0, q_size, [&](size_t begin, size_t end) {
+    for (size_t i = begin; i < end; i++) {
+      q_buffer[i] = spu::mpc::cheetah::EncodeSEALObject(enc_q[i]);
+    }
+  });
+
+  const auto query_e = std::chrono::system_clock::now();
+  const DurationMillis query_time = query_e - query_s;
+  SPDLOG_INFO("Query time: {} ms", query_time.count());
   int next = conn_->NextRank();
-  SPDLOG_INFO("q size: {}", q_size);
   for (size_t i = 0; i < q_size; i++) {
     auto tag = "query";
-    conn_->Send(next, q_buffer[i], tag);
+    conn_->SendAsync(next, q_buffer[i], tag);
   }
   // conn_->WaitLinkTaskFinish();
   return enc_q;
 }
 
-spu::NdArrayRef DisClient::RecvReply(spu::Shape r_padding_shape) {
-  size_t num_rlwes = std::ceil(static_cast<double>(num_points_) / degree_);
+spu::NdArrayRef DisClient::RecvReply(spu::Shape r_padding_shape,
+                                     size_t num_points) {
+  size_t num_rlwes = std::ceil(static_cast<double>(num_points) / degree_);
   std::vector<seal::Ciphertext> reply(num_rlwes);
   auto next = conn_->NextRank();
+  std::vector<yacl::Buffer> recv(num_rlwes);
+  for (size_t i = 0; i < num_rlwes; i++) {
+    recv[i] = conn_->Recv(next, "distance");
+  }
+  for (size_t i = 0; i < num_rlwes; i++) {
+    spu::mpc::cheetah::DecodeSEALObject(recv[i], *context_, &reply[i]);
+  }
+  return DecodeReply(reply, r_padding_shape, num_points);
+}
 
+std::vector<uint32_t> DisClient::RecvReply(size_t num_points) {
+  size_t num_rlwes = std::ceil(static_cast<double>(num_points) / degree_);
+  std::vector<seal::Ciphertext> reply(num_rlwes);
+  auto next = conn_->NextRank();
   for (size_t i = 0; i < num_rlwes; i++) {
     auto recv = conn_->Recv(next, "distance");
     spu::mpc::cheetah::DecodeSEALObject(recv, *context_, &reply[i]);
   }
-  return DecodeReply(reply, r_padding_shape);
+  return DecodeReply(reply, num_points);
 }
 
 spu::NdArrayRef DisClient::DecodeReply(std::vector<seal::Ciphertext> &reply,
-                                       spu::Shape r_padding_shape) {
+                                       spu::Shape r_padding_shape,
+                                       size_t num_points) {
   std::vector<seal::Plaintext> plain_reply(reply.size());
 
   auto vec_reply = spu::mpc::ring_zeros(spu::FM32, r_padding_shape);
@@ -91,6 +123,21 @@ spu::NdArrayRef DisClient::DecodeReply(std::vector<seal::Ciphertext> &reply,
   });
   return vec_reply;
 }
+std::vector<uint32_t> DisClient::DecodeReply(
+    std::vector<seal::Ciphertext> &reply, size_t num_points) {
+  std::vector<seal::Plaintext> plain_reply(reply.size());
+  std::vector<uint32_t> vec_reply(num_points);
+  uint32_t count = 0;
+  for (size_t i = 0; i < reply.size() && count < num_points; i++) {
+    decryptor_->decrypt(reply[i], plain_reply[i]);
+    for (size_t j = 0; j < plain_reply[i].coeff_count() && count < num_points;
+         j++) {
+      vec_reply[count] = plain_reply[i][j];
+      count++;
+    }
+  }
+  return vec_reply;
+}
 
 //----------------------------------------------------------------------------------------------
 // Server Impl
@@ -103,7 +150,7 @@ struct DisServer::Impl : public spu::mpc::cheetah::EnableCPRNG {
   // std::vector<seal::Ciphertext> H2A(std::vector<seal::Ciphertext> &ct);
 };  /// Server compute distance
 
-DisServer::DisServer(size_t degree,
+DisServer::DisServer(size_t degree, size_t logt,
                      const std::shared_ptr<yacl::link::Context> &conn) {
   degree_ = degree;
   seal_params_ =
@@ -112,7 +159,6 @@ DisServer::DisServer(size_t degree,
   seal_params_->set_coeff_modulus(seal::CoeffModulus::BFVDefault(degree));
   seal_params_->set_plain_modulus(1ULL << logt);
   context_ = std::make_unique<seal::SEALContext>(*(seal_params_));
-  yacl::set_num_threads(1);
   evaluator_ = std::make_unique<seal::Evaluator>(*context_);
 
   impl_ = std::make_shared<Impl>();
@@ -132,30 +178,41 @@ DisServer::DisServer(size_t degree,
 }
 
 std::vector<seal::Ciphertext> DisServer::RecvQuery(size_t query_size) {
-  SPDLOG_INFO("q size: {}", query_size);
   std::vector<seal::Ciphertext> q(query_size);
   auto next = conn_->NextRank();
+  const auto recv_s = std::chrono::system_clock::now();
+  std::vector<yacl::Buffer> recv(query_size);
   for (size_t i = 0; i < query_size; i++) {
-    auto recv = conn_->Recv(next, "query");
-    spu::mpc::cheetah::DecodeSEALObject(recv, *context_, &q[i]);
+    recv[i] = conn_->Recv(next, "query");
   }
+  for (size_t i = 0; i < query_size; i++) {
+    spu::mpc::cheetah::DecodeSEALObject(recv[i], *context_, &q[i]);
+  }
+  const auto recv_e = std::chrono::system_clock::now();
+  const DurationMillis recv_time = recv_e - recv_s;
+  SPDLOG_INFO("Recv time: {} ms", recv_time.count());
   return q;
 }
 
-spu::NdArrayRef DisServer::DoDistanceCmp(
+std::vector<uint32_t> DisServer::DoDistanceCmp(
     std::vector<std::vector<uint32_t>> &points,
-    std::vector<seal::Ciphertext> &q, spu::Shape shape) {
+    std::vector<seal::Ciphertext> &q) {
   SPU_ENFORCE_NE(points.size(), static_cast<size_t>(0));
-
+  const auto distance_cmp_s = std::chrono::system_clock::now();
   size_t num_rlwes = std::ceil(static_cast<double>(points.size()) / degree_);
   std::vector<seal::Plaintext> pre_points = PrePoints(points);
   std::vector<seal::Ciphertext> response(num_rlwes);
   size_t point_dim = q.size();
   yacl::parallel_for(0, point_dim, [&](size_t begin, size_t end) {
     for (size_t i = begin; i < end; i++) {
-      evaluator_->transform_to_ntt_inplace(q[i]);
+      if (q[i].is_ntt_form() == false)
+        evaluator_->transform_to_ntt_inplace(q[i]);
     }
   });
+  const auto distance_ntt_e = std::chrono::system_clock::now();
+  const DurationMillis dis_ntt_time = distance_ntt_e - distance_cmp_s;
+  SPDLOG_INFO("Distance NTT time: {} ms", dis_ntt_time.count());
+
   yacl::parallel_for(0, num_rlwes, [&](size_t begin, size_t end) {
     for (size_t bfv_index = begin; bfv_index < end; bfv_index++) {
       seal::Ciphertext tmp;
@@ -174,12 +231,83 @@ spu::NdArrayRef DisServer::DoDistanceCmp(
   });
 
   // After this operation: the response will be secret shared
-  auto rand_msk = H2A(response, shape);
+  const auto H2A_s = std::chrono::system_clock::now();
+  auto rand_msk = H2A(response, points.size());
+  const auto H2A_e = std::chrono::system_clock::now();
+  const DurationMillis H2A_time = H2A_e - H2A_s;
+  SPDLOG_INFO("H2A Time: {} ms", H2A_time.count());
 
   std::vector<yacl::Buffer> ciphers(num_rlwes);
   for (size_t i = 0; i < num_rlwes; i++) {
     ciphers[i] = spu::mpc::cheetah::EncodeSEALObject(response[i]);
   }
+
+  const auto distance_cmp_e = std::chrono::system_clock::now();
+  const DurationMillis distance_cmp_time = distance_cmp_e - distance_cmp_s;
+  SPDLOG_INFO("Distance Compute Time : {} ms", distance_cmp_time.count());
+  // TODO(ljy): H2A unit test
+  int next = conn_->NextRank();
+  for (size_t i = 0; i < num_rlwes; i++) {
+    auto tag = "distance";
+    conn_->SendAsync(next, ciphers[i], tag);
+  }
+  return rand_msk;
+}
+
+spu::NdArrayRef DisServer::DoDistanceCmp(
+    std::vector<std::vector<uint32_t>> &points,
+    std::vector<seal::Ciphertext> &q, spu::Shape shape) {
+  SPU_ENFORCE_NE(points.size(), static_cast<size_t>(0));
+
+  const auto distance_cmp_s = std::chrono::system_clock::now();
+  size_t num_rlwes = std::ceil(static_cast<double>(points.size()) / degree_);
+  std::vector<seal::Plaintext> pre_points = PrePoints(points);
+  std::vector<seal::Ciphertext> response(num_rlwes);
+  size_t point_dim = q.size();
+  yacl::parallel_for(0, point_dim, [&](size_t begin, size_t end) {
+    for (size_t i = begin; i < end; i++) {
+      if (q[i].is_ntt_form() == false)
+        evaluator_->transform_to_ntt_inplace(q[i]);
+    }
+  });
+
+  const auto distance_ntt_e = std::chrono::system_clock::now();
+  const DurationMillis dis_ntt_time = distance_ntt_e - distance_cmp_s;
+  SPDLOG_INFO("Distance NTT time: {} ms", dis_ntt_time.count());
+
+  yacl::parallel_for(0, num_rlwes, [&](size_t begin, size_t end) {
+    for (size_t bfv_index = begin; bfv_index < end; bfv_index++) {
+      seal::Ciphertext tmp;
+      for (size_t i = 0; i < point_dim; i++) {
+        if (i == 0) {
+          evaluator_->multiply_plain(
+              q[i], pre_points[bfv_index * point_dim + i], response[bfv_index]);
+        } else {
+          evaluator_->multiply_plain(
+              q[i], pre_points[bfv_index * point_dim + i], tmp);
+          evaluator_->add_inplace(response[bfv_index], tmp);
+        }
+      }
+      evaluator_->transform_from_ntt_inplace(response[bfv_index]);
+    }
+  });
+
+  // After this operation: the response will be secret shared
+
+  const auto H2A_s = std::chrono::system_clock::now();
+  auto rand_msk = H2A(response, shape);
+  const auto H2A_e = std::chrono::system_clock::now();
+  const DurationMillis H2A_time = H2A_e - H2A_s;
+  SPDLOG_INFO("H2A Time: {} ms", H2A_time.count());
+
+  std::vector<yacl::Buffer> ciphers(num_rlwes);
+  for (size_t i = 0; i < num_rlwes; i++) {
+    ciphers[i] = spu::mpc::cheetah::EncodeSEALObject(response[i]);
+  }
+  const auto distance_cmp_e = std::chrono::system_clock::now();
+  const DurationMillis distance_cmp_time = distance_cmp_e - distance_cmp_s;
+  SPDLOG_INFO("Distance Compute Time : {} ms", distance_cmp_time.count());
+
   // TODO(ljy): H2A unit test
   int next = conn_->NextRank();
   for (size_t i = 0; i < num_rlwes; i++) {
@@ -198,6 +326,34 @@ void DisServer::DecodePolyToVector(const seal::Plaintext &poly,
 }
 
 const auto field = spu::FM32;
+
+std::vector<uint32_t> DisServer::H2A(std::vector<seal::Ciphertext> &ct,
+                                     uint32_t points_num) {
+  seal::Plaintext rand;
+  seal::Ciphertext zero_ct;
+  std::vector<uint32_t> res(points_num);
+  std::vector<uint32_t> out(degree_, 0);
+  size_t count = 0;
+  for (size_t idx = 0; idx < ct.size(); idx++) {
+    // TODO(ljy): preprocess generate more encrypted_zero
+    spu::mpc::cheetah::ModulusSwtichInplace(ct[idx], 1, *context_);
+    seal::util::encrypt_zero_asymmetric(public_key_, *context_,
+                                        ct[idx].parms_id(),
+                                        ct[idx].is_ntt_form(), zero_ct);
+    evaluator_->add_inplace(ct[idx], zero_ct);
+
+    impl_->UniformPoly(*context_, &rand, ct[idx].parms_id());
+    spu::mpc::cheetah::SubPlainInplace(ct[idx], rand, *context_);
+
+    DecodePolyToVector(rand, out);
+    for (size_t coeff_i = 0; coeff_i < degree_ && count < points_num;
+         coeff_i++) {
+      res[count] = out[coeff_i];
+      count++;
+    }
+  }
+  return res;
+}
 
 spu::NdArrayRef DisServer::H2A(std::vector<seal::Ciphertext> &ct,
                                spu::Shape shape) {
@@ -230,6 +386,15 @@ spu::NdArrayRef DisServer::H2A(std::vector<seal::Ciphertext> &ct,
     });
   }
   return res;
+}
+
+void DisServer::RecvPublicKey() {
+  yacl::Buffer pubkey_buffer =
+      conn_->Recv(conn_->NextRank(),
+                  fmt::format("recv public key from rank-{}", conn_->Rank()));
+  seal::PublicKey pubkey;
+  spu::mpc::cheetah::DecodeSEALObject(pubkey_buffer, *context_, &pubkey);
+  SetPublicKey(pubkey);
 }
 
 std::vector<seal::Plaintext> DisServer::PrePoints(

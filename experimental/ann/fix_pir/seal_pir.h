@@ -283,6 +283,7 @@ class SealPirClient : public SealPir {
 
   // generate GaloisKeys
   seal::GaloisKeys GenerateGaloisKeys();
+  seal::PublicKey GetPublicKey() { return public_key_; };
 
   void ComputeInverseScales();
 
