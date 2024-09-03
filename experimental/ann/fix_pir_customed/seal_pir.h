@@ -26,7 +26,7 @@
 
 #include "libspu/mpc/cheetah/arith/vector_encoder.h"
 
-#include "experimental/ann/fix_pir/serializable.pb.h"
+#include "experimental/ann/fix_pir_customed/serializable.pb.h"
 
 namespace spu::seal_pir {
 
@@ -49,7 +49,7 @@ struct SealPirOptions {
   // 那整个数据库分成了10份，Client端在查询的时候，就只在其中的某一份进行查询
   size_t query_size = 0;
   // log2 of plaintext modulus
-  size_t logt = 24;
+  size_t logt = 12;
 };
 
 struct PirParams {
@@ -69,8 +69,11 @@ class SealPir {
  public:
   explicit SealPir(const SealPirOptions &options) : options_(options) {
     SetPolyModulusDegree(options.poly_modulus_degree);
+    for (size_t i = 0; i < 2; i++) {
+      evaluator_[i] = std::make_unique<seal::Evaluator>(*(context_[i]));
 
-    evaluator_ = std::make_unique<seal::Evaluator>(*context_);
+      // std::cout << "test " << std::endl;
+    }
 
     if (options.query_size > 0) {
       SetPirParams(options.query_size, options.element_size);
@@ -102,14 +105,14 @@ class SealPir {
   }
 
   template <typename T>
-  T DeSerializeSealObject(const std::string &object_bytes,
+  T DeSerializeSealObject(const std::string &object_bytes, size_t dim,
                           bool safe_load = false) {
     T seal_object;
     std::istringstream object_input(object_bytes);
     if (safe_load) {
-      seal_object.load(*context_, object_input);
+      seal_object.load(*context_[dim], object_input);
     } else {
-      seal_object.unsafe_load(*context_, object_input);
+      seal_object.unsafe_load(*context_[dim], object_input);
     }
     return seal_object;
   }
@@ -122,10 +125,10 @@ class SealPir {
   yacl::Buffer SerializeCiphertexts(
       const std::vector<seal::Ciphertext> &ciphers);
 
-  std::vector<seal::Ciphertext> DeSerializeCiphertexts(
+  std::vector<seal::Ciphertext> DeSerializeAnswers(
       const CiphertextsProto &ciphers_proto, bool safe_load = false);
 
-  std::vector<seal::Ciphertext> DeSerializeCiphertexts(
+  std::vector<seal::Ciphertext> DeSerializeAnswers(
       const yacl::Buffer &ciphers_buffer, bool safe_load = false);
 
   yacl::Buffer SerializeQuery(
@@ -144,10 +147,9 @@ class SealPir {
  protected:
   SealPirOptions options_;
   PirParams pir_params_;
-  std::unique_ptr<seal::EncryptionParameters> enc_params_;
-
-  std::unique_ptr<seal::SEALContext> context_;
-  std::unique_ptr<seal::Evaluator> evaluator_;
+  std::unique_ptr<seal::EncryptionParameters> enc_params_[2];
+  std::unique_ptr<seal::SEALContext> context_[2];
+  std::unique_ptr<seal::Evaluator> evaluator_[2];
 };
 
 //
@@ -197,13 +199,17 @@ class SealPirServer : public SealPir {
   void SetDatabase(const std::vector<yacl::ByteContainerView> &db_vec);
 
   // set client GaloisKeys
-  void SetGaloisKeys(const seal::GaloisKeys &galkey) { galois_key_ = galkey; }
+  void SetGaloisKeys(const seal::GaloisKeys &galkey, size_t index) {
+    galois_key_[index] = galkey;
+  }
 
-  void SetPublicKey(const seal::PublicKey &pubkey) { public_key_ = pubkey; }
+  void SetPublicKey(const seal::PublicKey &pubkey, size_t index) {
+    public_key_[index] = pubkey;
+  }
 
   // expand one query Seal:Ciphertext
   std::vector<seal::Ciphertext> ExpandQuery(const seal::Ciphertext &encrypted,
-                                            std::uint32_t m);
+                                            std::uint32_t m, size_t dim);
 
   // GenerateReply for query_ciphers
   std::vector<seal::Ciphertext> GenerateReply(
@@ -212,7 +218,7 @@ class SealPirServer : public SealPir {
 
   std::vector<seal::Ciphertext> GenerateReply(
       const std::vector<std::vector<seal::Ciphertext>> &query_ciphers,
-      std::vector<uint32_t> &random);
+      std::vector<uint64_t> &random);
 
   std::string SerializeDbPlaintext(int db_index = 0);
   void DeSerializeDbPlaintext(const std::string &db_serialize_bytes,
@@ -226,11 +232,9 @@ class SealPirServer : public SealPir {
   void DoPirAnswer(const std::shared_ptr<yacl::link::Context> &link_ctx);
 
   void H2A(std::vector<seal::Ciphertext> &ct,
-           std::vector<uint32_t> &random_mask);
+           std::vector<uint64_t> &random_mask);
 
  private:
-  void DecodePolyToVector(const seal::Plaintext &poly,
-                          std::vector<uint32_t> &out);
   struct Impl;
   std::shared_ptr<Impl> impl_;
   std::unique_ptr<spu::mpc::cheetah::ModulusSwitchHelper> msh_;
@@ -245,8 +249,14 @@ class SealPirServer : public SealPir {
 
   bool is_db_preprocessed_;
 
-  seal::GaloisKeys galois_key_;
-  seal::PublicKey public_key_;
+  seal::GaloisKeys galois_key_[2];
+  seal::PublicKey public_key_[2];
+
+  seal::MemoryPoolHandle my_pool_;
+  std::unique_ptr<seal::util::RNSTool> rns_tool_[2];
+
+  void DecodePolyToVector(seal::Plaintext &poly, seal::Plaintext &dest,
+                          size_t degree, size_t dim);
 
   void DecomposeToPlaintextsPtr(const seal::Ciphertext &encrypted,
                                 seal::Plaintext *plain_ptr, int logt);
@@ -260,7 +270,8 @@ class SealPirServer : public SealPir {
   // ref:
   // https://github.com/microsoft/SealPIR/blob/ee1a5a3922fc9250f9bb4e2416ff5d02bfef7e52/src/pir_server.cpp#L397
   void multiply_power_of_X(const seal::Ciphertext &encrypted,
-                           seal::Ciphertext &destination, uint32_t index);
+                           seal::Ciphertext &destination, uint32_t index,
+                           size_t dim);
 };
 
 class SealPirClient : public SealPir {
@@ -282,8 +293,8 @@ class SealPirClient : public SealPir {
   void SendPublicKey(const std::shared_ptr<yacl::link::Context> &link_ctx);
 
   // generate GaloisKeys
-  seal::GaloisKeys GenerateGaloisKeys();
-  seal::PublicKey GetPublicKey() { return public_key_; };
+  seal::GaloisKeys GenerateGaloisKeys(size_t index);
+  seal::PublicKey GetPublicKey(size_t index) { return public_key_[index]; };
 
   void ComputeInverseScales();
 
@@ -312,11 +323,11 @@ class SealPirClient : public SealPir {
       const std::shared_ptr<yacl::link::Context> &link_ctx, size_t db_index);
 
  private:
-  std::unique_ptr<seal::KeyGenerator> keygen_;
-  seal::PublicKey public_key_;
+  std::unique_ptr<seal::KeyGenerator> keygen_[2];
+  seal::PublicKey public_key_[2];
 
-  std::unique_ptr<seal::Encryptor> encryptor_;
-  std::unique_ptr<seal::Decryptor> decryptor_;
+  std::unique_ptr<seal::Encryptor> encryptor_[2];
+  std::unique_ptr<seal::Decryptor> decryptor_[2];
 
   std::vector<uint64_t> indices_;  // the indices for retrieval.
 

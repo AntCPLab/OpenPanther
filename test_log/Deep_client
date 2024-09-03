@@ -1,0 +1,73 @@
+[2024-07-08 14:57:09.370] [info] [sanns_demo_deep.cc:228] Total bin number (batch size of argmin): 6244 , Max bin size: 235
+[2024-07-08 14:57:09.370] [info] [sanns_demo_deep.cc:244] Batch query size: 186, Cluster size: , Element size (coeff size): 378890
+[2024-07-08 14:57:19.398] [info] [state.h:150] CHEETAH: Uses yacl_ferret OT
+[2024-07-08 14:57:19.440] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 14:57:19.938] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 14:57:20.431] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 14:57:20.933] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 14:57:21.434] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 14:57:21.934] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 14:57:22.434] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 14:57:22.929] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 14:57:23.425] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 14:57:23.922] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 14:57:24.416] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 14:57:24.913] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 14:57:25.403] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 14:57:25.896] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 14:57:26.388] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 14:57:26.882] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 14:57:27.365] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 14:57:27.867] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 14:57:28.366] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 14:57:28.873] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 14:57:29.381] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 14:57:29.882] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 14:57:30.399] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 14:57:30.899] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 14:57:31.395] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 14:57:31.909] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 14:57:32.411] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 14:57:32.917] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 14:57:33.422] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 14:57:33.928] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 14:57:34.425] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 14:57:34.925] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 14:57:35.419] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 14:57:35.915] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 14:57:36.404] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 14:57:36.897] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 14:57:37.390] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 14:57:37.886] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 14:57:38.370] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 14:57:38.855] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 14:57:39.336] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 14:57:39.824] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 14:57:40.307] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 14:57:40.790] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 14:57:41.280] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 14:57:41.764] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 14:57:42.245] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 14:57:42.730] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 14:58:12.877] [info] [thread_pool.cc:30] Create a fixed thread pool with size 71
+connected
+[2024-07-08 14:59:32.122] [info] [dist_cmp.cc:65] Query time: 15.64414 ms
+[2024-07-08 14:59:33.485] [info] [sanns_demo_deep.cc:294] Distance cmp time: 1378.371882 ms
+[2024-07-08 14:59:33.485] [info] [sanns_demo_deep.cc:295] Distance client sent actions: 96, Distance comm: 8.104766845703125 MB
+[2024-07-08 14:59:34.330] [info] [sanns_demo_deep.cc:311] Argmin cmp time: 844.958504 ms
+[2024-07-08 14:59:34.330] [info] [sanns_demo_deep.cc:315] Argmin client sent actions: 1480, Argmax comm: 58.041141510009766 MB
+[2024-07-08 14:59:34.330] [info] [sanns_demo_deep.cc:319] Batch number: 6244, element number: 235
+[2024-07-08 14:59:36.273] [info] [sanns_demo_deep.cc:333] GC_naive_topk cmp time: 1943.504073 ms
+[2024-07-08 14:59:36.273] [info] [sanns_demo_deep.cc:336] GC_naive_topk comm: 4.250099182128906 MB
+[2024-07-08 14:59:36.275] [info] [seal_mpir.cc:418] Hash time: 1.848036 ms
+[2024-07-08 14:59:37.380] [info] [seal_mpir.cc:451] Query compute time: 1106.213353 ms
+[2024-07-08 14:59:41.420] [info] [seal_mpir.cc:470] Answer size: 287
+[2024-07-08 14:59:41.771] [info] [sanns_demo_deep.cc:350] PIR cmp time: 5497.648267 ms
+[2024-07-08 14:59:41.771] [info] [sanns_demo_deep.cc:351] PIR client query comm: 48.467848777770996 MB
+[2024-07-08 14:59:41.772] [info] [sanns_demo_deep.cc:359] Point_distance comm: 0 MB
+[2024-07-08 14:59:41.772] [info] [sanns_demo_deep.cc:364] Point_distance cmp time: 0.962193 ms
+[2024-07-08 14:59:45.018] [info] [sanns_demo_deep.cc:374] End_topk_11490-10 cmp time: 3246.68397 ms
+[2024-07-08 14:59:45.018] [info] [sanns_demo_deep.cc:377] End_topk_11490-10 comm: 9.830759048461914 MB
+[2024-07-08 14:59:45.018] [info] [sanns_demo_deep.cc:384] Total time: 12911.227772 ms
+[2024-07-08 14:59:45.018] [info] [sanns_demo_deep.cc:388] Total comm: 128.94858741760254 MB
+[2024-07-08 14:59:45.590] [warning] [channel.h:163] Channel destructor is called before WaitLinkTaskFinish, try stop send thread

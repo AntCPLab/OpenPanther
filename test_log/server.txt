@@ -1,0 +1,42 @@
+[2024-07-04 10:01:44.079] [info] [sanns_demo.cc:227] Total bin number (batch size of argmin): 1252 , Max bin size: 120
+[2024-07-04 10:01:44.079] [info] [sanns_demo.cc:243] Batch query size: 113, Cluster size: , Element size (coeff size): 90608
+[2024-07-04 10:01:47.972] [info] [state.h:150] CHEETAH: Uses yacl_ferret OT
+[2024-07-04 10:01:48.018] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-04 10:01:48.517] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-04 10:01:49.035] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-04 10:01:49.528] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-04 10:01:49.985] [info] [sanns_demo.cc:169] DB: element number:90608 element size:2600
+[2024-07-04 10:01:54.581] [info] [thread_pool.cc:30] Create a fixed thread pool with size 71
+[2024-07-04 10:01:54.590] [info] [seal_mpir.cc:43] Element_number:90608
+[2024-07-04 10:01:54.595] [info] [seal_mpir.h:98] N:4096 Max bin size:1620 Element size:2600
+connected
+[2024-07-04 10:02:09.019] [info] [dist_cmp.cc:193] Recv time: 31.706425 ms
+[2024-07-04 10:02:09.123] [info] [dist_cmp.cc:267] Prepoint time: 103.752724
+[2024-07-04 10:02:09.124] [info] [dist_cmp.cc:279] Distance NTT time: 104.302626 ms
+[2024-07-04 10:02:09.149] [info] [dist_cmp.cc:304] H2A Time: 19.660502 ms
+[2024-07-04 10:02:09.163] [info] [dist_cmp.cc:312] Distance Compute Time : 144.175755 ms
+[2024-07-04 10:02:09.198] [info] [sanns_demo.cc:408] Distance cmp time: 423.330234 ms
+[2024-07-04 10:02:09.198] [info] [sanns_demo.cc:409] Distance server sent actions: 23, Distance comm: 1041.1357421875 KB
+[2024-07-04 10:02:09.655] [info] [sanns_demo.cc:424] Batch number: 1252, element number: 120, Argmax server sent actions: 132, Argmax comm: 1706.0078125 KB
+[2024-07-04 10:02:09.655] [info] [sanns_demo.cc:432] Argmax cmp time: 456.113663 ms
+[2024-07-04 10:02:09.852] [info] [sanns_demo.cc:445] Gc topk cmp time: 197.920074 ms
+[2024-07-04 10:02:09.853] [info] [sanns_demo.cc:448] Communication for cluster topk: 67466.0419921875 KB
+[2024-07-04 10:02:10.626] [info] [seal_mpir.cc:209] PIR: Recv time: 772.959759 ms
+[2024-07-04 10:02:10.626] [info] [seal_mpir.cc:210] PIR: Query recv comm: 30610.08203125 KB
+[2024-07-04 10:02:11.736] [info] [seal_mpir.cc:243] PIR: Compute time: 1100.332073 ms
+[2024-07-04 10:02:11.760] [info] [seal_mpir.cc:261] PIR: Transfer to Protobuffer: 23.975349 ms
+[2024-07-04 10:02:11.775] [info] [seal_mpir.cc:274] PIR: Send time: 14.975615 ms
+[2024-07-04 10:02:11.775] [info] [seal_mpir.cc:275] PIR: Query sent comm: 32061.8447265625 KB
+[2024-07-04 10:02:11.775] [info] [seal_mpir.cc:280] PIR: Answer generate: 1922.669117 ms
+[2024-07-04 10:02:11.780] [info] [sanns_demo.cc:455] PIR server response comm: 32061.8447265625 KB
+[2024-07-04 10:02:11.780] [info] [sanns_demo.cc:458] PIR cmp time: 1927.184693 ms
+[2024-07-04 10:02:11.783] [info] [dist_cmp.cc:214] Distance NTT time: 2.572657 ms
+[2024-07-04 10:02:11.787] [info] [dist_cmp.cc:238] H2A Time: 0.95708 ms
+[2024-07-04 10:02:11.787] [info] [dist_cmp.cc:247] Distance Compute Time : 7.488611 ms
+[2024-07-04 10:02:11.787] [info] [sanns_demo.cc:466] Point distance comm: 45.2294921875 KB
+[2024-07-04 10:02:11.787] [info] [sanns_demo.cc:469] Dis 2 cmp time: 7.813425 ms
+[2024-07-04 10:02:12.268] [info] [sanns_demo.cc:478] Topk cmp time: 488.328881 ms
+[2024-07-04 10:02:12.268] [info] [sanns_demo.cc:481] End topk 3550-10 comm: 62347.0703125 KB
+[2024-07-04 10:02:12.268] [info] [sanns_demo.cc:488] Total time: 3492.914673 ms
+[2024-07-04 10:02:12.268] [info] [sanns_demo.cc:491] Total comm: 160.8164234161377 MB
+[2024-07-04 10:02:12.341] [warning] [channel.h:163] Channel destructor is called before WaitLinkTaskFinish, try stop send thread

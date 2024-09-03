@@ -40,6 +40,8 @@ class YaclFerretOt : public spu::mpc::cheetah::FerretOtInterface {
 
   void Flush() override;
 
+  void Bootstrap() override;
+
   // One-of-N OT where msg_array is a Nxn array.
   // choice \in [0, N-1]
   void SendCMCC(absl::Span<const uint8_t> msg_array, size_t N,

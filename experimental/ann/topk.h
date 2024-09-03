@@ -28,4 +28,10 @@ std::vector<int32_t> NaiveTopK(size_t n, size_t k, size_t item_bits,
                                std::vector<uint32_t> &input,
                                std::vector<uint32_t> &index);
 
+std::vector<int32_t> TopK(size_t n, size_t k, size_t item_bits, size_t id_bits,
+                          std::vector<uint32_t> &input,
+                          std::vector<uint32_t> &index);
+
+template <typename T, typename D>
+void BitonicTopk(T *key, D *data, int n, int k, Bit acc);
 }  // namespace sanns::gc

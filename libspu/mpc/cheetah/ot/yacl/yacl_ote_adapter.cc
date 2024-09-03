@@ -83,7 +83,8 @@ void YaclFerretOTeAdapter::OneTimeSetup() {
   is_setup_ = true;
   buff_used_num_ = reserve_num_;
   buff_upper_bound_ = pre_lpn_param_.n;
-  Bootstrap();
+  // Bootstrap();
+  // Bootstrap();
 }
 
 void YaclFerretOTeAdapter::rcot(absl::Span<uint128_t> data) {
@@ -199,7 +200,7 @@ void YaclFerretOTeAdapter::recv_cot(
 }
 
 void YaclFerretOTeAdapter::Bootstrap() {
-  SPDLOG_INFO("Doing Ferret-OT Bootstrap now!");
+  // SPDLOG_INFO("Doing Ferret-OT Bootstrap now!");
   auto begin = std::chrono::high_resolution_clock::now();
   if (is_sender_) {
     yacl::UninitAlignedVector<uint128_t> send_ot(
@@ -226,6 +227,7 @@ void YaclFerretOTeAdapter::Bootstrap() {
   // add state
   ++bootstrap_num_;
   bootstrap_time_ += elapse * 1000;
+  // SPDLOG_INFO("Bootstrap time: {} ms", bootstrap_time_);
 }
 
 void YaclFerretOTeAdapter::BootstrapInplace(absl::Span<uint128_t> ot,

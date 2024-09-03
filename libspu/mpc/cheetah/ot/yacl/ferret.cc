@@ -170,6 +170,7 @@ struct YaclFerretOt::Impl {
 
   int Rank() const { return io_->conn_->getRank(); }
 
+  void Bootstrap() { ferret_->Bootstrap(); };
   void Flush() {
     if (io_) {
       io_->flush();
@@ -747,6 +748,7 @@ YaclFerretOt::YaclFerretOt(std::shared_ptr<Communicator> conn, bool is_sender,
 int YaclFerretOt::Rank() const { return impl_->Rank(); }
 
 void YaclFerretOt::Flush() { impl_->Flush(); }
+void YaclFerretOt::Bootstrap() { impl_->Bootstrap(); }
 
 YaclFerretOt::~YaclFerretOt() { impl_->Flush(); }
 

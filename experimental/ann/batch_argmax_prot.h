@@ -15,14 +15,16 @@ class BatchArgmaxProtocol {
   std::vector<spu::NdArrayRef> ComputeWithIndex(const spu::NdArrayRef &inp,
                                                 const spu::NdArrayRef &index,
                                                 const int64_t bitwidth,
+                                                const int64_t shift,
                                                 const size_t batch_size,
                                                 const size_t max_size);
+
+  spu::NdArrayRef TruncateAndReduce(const spu::NdArrayRef &inp,
+                                    int64_t bitwidth, int64_t shift);
 
  private:
   spu::NdArrayRef Select(spu::NdArrayRef &select_bits, spu::NdArrayRef &a);
   spu::NdArrayRef DReLU(spu::NdArrayRef &inp, int64_t bitwidth);
-  spu::NdArrayRef TruncValue(spu::NdArrayRef &inp, int64_t bitwidth,
-                             int64_t shift);
   size_t compare_radix_;
   bool is_sender_{false};
 

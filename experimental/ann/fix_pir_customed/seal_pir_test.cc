@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "libspu/fix_pir/seal_pir.h"
+#include "experimental/ann/fix_pir_customed/seal_pir.h"
 
 #include <chrono>
 #include <memory>
@@ -60,22 +60,24 @@ class SealPirTest : public testing::TestWithParam<TestParams> {};
 TEST_P(SealPirTest, Works) {
   auto params = GetParam();
   size_t n = params.N;
-  auto ctxs = yacl::link::test::SetupWorld(2);
-  // yacl::ThreadPool(1);
+  auto ctxs = yacl::link::test::SetupBrpcWorld(2);
+  yacl::set_num_threads(1);
+  // yacl::ThreadPool(72);
 
   SPDLOG_INFO(
       "N: {}, element size: {} coeffs , element_number: 2^{:.2f} = {}, "
       "query_size(Indistinguishable degree) {}, logt: {}",
       n, params.element_size, std::log2(params.element_number),
-      params.element_number, params.query_size);
+      params.element_number, params.query_size, 24);
 
   std::vector<uint8_t> db_data = GenerateDbData(params);
 
   spu::seal_pir::SealPirOptions options{n, params.element_number,
                                         params.element_size, params.query_size};
-
+  std::cout << '1' << std::endl;
   spu::seal_pir::SealPirClient client(options);
 
+  std::cout << '2' << std::endl;
   std::shared_ptr<IDbPlaintextStore> plaintext_store =
       std::make_shared<MemoryDbPlaintextStore>();
 #ifdef DEC_DEBUG_
@@ -84,12 +86,14 @@ TEST_P(SealPirTest, Works) {
   spu::seal_pir::SealPirServer server(options, plaintext_store);
 #endif
 
+  std::cout << '3' << std::endl;
   // === server setup
   // using uint32_t to save coeff
 
   std::shared_ptr<IDbElementProvider> db_provider =
       std::make_shared<MemoryDbElementProvider>(db_data,
                                                 params.element_size * 4);
+  SPDLOG_INFO("Server start database encode!");
   server.SetDatabase(db_provider);
 
   SPDLOG_INFO("Server fininshed SetDatabase");
@@ -105,8 +109,11 @@ TEST_P(SealPirTest, Works) {
   server_galkey_func.get();
   */
   // use offline
-  seal::GaloisKeys galkey = client.GenerateGaloisKeys();
-  server.SetGaloisKeys(galkey);
+  seal::GaloisKeys galkey = client.GenerateGaloisKeys(0);
+  server.SetGaloisKeys(galkey, 0);
+
+  galkey = client.GenerateGaloisKeys(1);
+  server.SetGaloisKeys(galkey, 1);
 
   std::random_device rd;
 
@@ -150,7 +157,7 @@ TEST_P(SealPirTest, Works) {
 //                     ));
 
 INSTANTIATE_TEST_SUITE_P(Works_Instances, SealPirTest,
-                         testing::Values(TestParams{4096, 2048, 20 * 128}));
+                         testing::Values(TestParams{4096, 4096, 20 * 128}));
 // small element_size to avoid out of memory
 
 }  // namespace spu::seal_pir

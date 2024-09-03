@@ -100,6 +100,115 @@ void Approximate_topk(Integer *input, Integer *index, int len, int k, int l,
   delete[] bin_max_id;
 }
 
+int greatestPowerOfTwoLessThan(int n) {
+  int k = 1;
+  while (k < n) k = k << 1;
+  return k >> 1;
+}
+
+template <typename T, typename D = Bit>
+void oddEvenMergeSort(T *key, D *data, int lo, int n, Bit acc) {
+  auto t = greatestPowerOfTwoLessThan(n);
+  uint32_t p = t;
+  while (p > 0) {
+    uint32_t q = t;
+    uint32_t r = 0;
+    uint32_t d = p;
+    while (d > 0) {
+      for (uint32_t i = 0; i < n - d; i++) {
+        if ((i & p) == r) {
+          cmp_swap(key, data, lo + i, lo + i + d, acc);
+        }
+      }
+      d = q - p;
+      q = q >> 1;
+      r = p;
+    }
+    p = p >> 1;
+  }
+}
+
+template <typename T, typename D = Bit>
+int local_sort(T *key, D *data, int lo, int n, int k, Bit acc);
+
+template <typename T, typename D = Bit>
+int local_sort(T *key, D *data, int lo, int n, int k, Bit acc) {
+  assert(n % k == 0);
+  auto num = n / k;
+  for (int i = 0; i < num; i++) {
+    // bitonic_sort(key, data, i * k, k, acc);
+    oddEvenMergeSort(key, data, i * k, k, acc);
+  }
+  return num;
+}
+template <typename T, typename D>
+
+void topk_merge(T *key, D *data, int k, int number, Bit acc);
+
+template <typename T, typename D>
+void topk_merge(T *key, D *data, int k, int number, Bit acc) {
+  if (number > 1) {
+    auto merge_time = number / 2;
+    for (int i = 0; i < merge_time; i++) {
+      for (int j = 0; j < k; j++) {
+        cmp_swap(key, data, i * k + j, number * k - i * k - j - 1, acc);
+      }
+    }
+  }
+}
+
+template <typename T, typename D>
+void BitonicTopk(T *key, D *data, int n, int k, Bit acc) {
+  auto number = local_sort(key, data, 0, n, k, !acc);
+  while (number != 1) {
+    topk_merge(key, data, k, number, acc);
+    number = std::ceil((double)number / 2);
+    for (int i = 0; i < number; i++) {
+      bitonic_merge(key, data, i * k, k, !acc);
+    }
+  }
+}
+
+template void BitonicTopk(Integer *key, Integer *data, int n, int k, Bit acc);
+
+std::vector<int32_t> TopK(size_t n, size_t k, size_t item_bits, size_t id_bits,
+                          std::vector<uint32_t> &input,
+                          std::vector<uint32_t> &index) {
+  std::vector<int32_t> gc_id(k);
+  int32_t item_mask = (1 << item_bits) - 1;
+  int32_t id_mask = (1 << id_bits) - 1;
+  std::unique_ptr<emp::Integer[]> A = std::make_unique<emp::Integer[]>(n);
+  std::unique_ptr<emp::Integer[]> B = std::make_unique<emp::Integer[]>(n);
+
+  std::unique_ptr<emp::Integer[]> A_idx = std::make_unique<emp::Integer[]>(n);
+  std::unique_ptr<emp::Integer[]> B_idx = std::make_unique<emp::Integer[]>(n);
+  std::unique_ptr<emp::Integer[]> INPUT = std::make_unique<emp::Integer[]>(n);
+  std::unique_ptr<emp::Integer[]> INDEX = std::make_unique<emp::Integer[]>(n);
+
+  for (size_t i = 0; i < n; ++i) {
+    input[i] &= item_mask;
+    index[i] &= id_mask;
+
+    A[i] = Integer(item_bits, input[i], ALICE);
+    B[i] = Integer(item_bits, input[i], BOB);
+
+    A_idx[i] = Integer(id_bits, index[i], ALICE);
+    B_idx[i] = Integer(id_bits, index[i], BOB);
+  }
+
+  for (size_t i = 0; i < n; ++i) {
+    INDEX[i] = A_idx[i] + B_idx[i];
+    INPUT[i] = A[i] + B[i];
+  }
+
+  sanns::gc::BitonicTopk(INPUT.get(), INDEX.get(), n, k, true);
+
+  for (size_t i = 0; i < k; i++) {
+    gc_id[i] = INDEX[i].reveal<int32_t>(BOB);
+  }
+  return gc_id;
+}
+
 std::vector<int32_t> NaiveTopK(size_t n, size_t k, size_t item_bits,
                                size_t discard_bits, size_t id_bits,
                                std::vector<uint32_t> &input,
@@ -133,8 +242,8 @@ std::vector<int32_t> NaiveTopK(size_t n, size_t k, size_t item_bits,
   }
 
   for (size_t i = 0; i < n; ++i) {
-    INDEX[i] = A_idx[i] + B_idx[i];
     INPUT[i] = A[i] + B[i];
+    INDEX[i] = A_idx[i] + B_idx[i];
   }
   sanns::gc::Discard(INPUT.get(), n, discard_bits);
   sanns::gc::Naive_topk(INPUT.get(), INDEX.get(), n, k, MIN_TOPK.get(),

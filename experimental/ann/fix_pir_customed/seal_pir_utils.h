@@ -95,12 +95,12 @@ inline uint64_t InvertMod(uint64_t m, const seal::Modulus& mod) {
 }
 
 inline uint32_t ComputeExpansionRatio(const seal::EncryptionParameters params) {
-  uint32_t expansion_ratio = 0;
-  uint32_t pt_bits_per_coeff = log2(params.plain_modulus().value());
-  for (size_t i = 0; i < params.coeff_modulus().size(); ++i) {
-    double coeff_bit_size = log2(params.coeff_modulus()[i].value());
-    expansion_ratio += ceil(coeff_bit_size / pt_bits_per_coeff);
-  }
+  uint32_t expansion_ratio = 1;
+  // uint32_t pt_bits_per_coeff = log2(params.plain_modulus().value());
+  // for (size_t i = 0; i < params.coeff_modulus().size(); ++i) {
+  // double coeff_bit_size = log2(params.coeff_modulus()[i].value());
+  // expansion_ratio += ceil(coeff_bit_size / pt_bits_per_coeff);
+  // }
   return expansion_ratio;
 }
 

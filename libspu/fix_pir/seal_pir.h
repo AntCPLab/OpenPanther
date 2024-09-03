@@ -226,8 +226,7 @@ class SealPirServer : public SealPir {
 #ifdef DEC_DEBUG_
   SealPirClient &client_;
 #endif
-
-  std::vector<std::unique_ptr<std::vector<seal::Plaintext>>> db_vec_;
+  std::std::vector<std::unique_ptr<std::vector<seal::Plaintext>>> db_vec_;
 
   std::shared_ptr<IDbPlaintextStore> plaintext_store_;
 
@@ -297,6 +296,7 @@ class SealPirClient : public SealPir {
       const std::shared_ptr<yacl::link::Context> &link_ctx, size_t db_index);
 
  private:
+  std::unique_ptr<seal::MemoryPoolHandle> my_pool_;
   std::unique_ptr<seal::KeyGenerator> keygen_;
 
   std::unique_ptr<seal::Encryptor> encryptor_;

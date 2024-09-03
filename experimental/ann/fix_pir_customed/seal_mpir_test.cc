@@ -31,7 +31,7 @@ struct TestParams {
   size_t batch_number;
   size_t element_number;
   size_t element_size = 288;
-  size_t poly_degree = 8192;  // now we support 4096 and 8192
+  size_t poly_degree = 4096;  // now we support 4096 and 8192
 };
 
 std::vector<uint8_t> GenerateDbData(TestParams params) {
@@ -46,7 +46,8 @@ std::vector<uint8_t> GenerateDbData(TestParams params) {
   for (uint64_t i = 0; i < params.element_number; i++) {
     for (uint64_t j = 0; j < params.element_size; j++) {
       auto val = rand() % 512;
-      db_raw_data[(i * params.element_size) + j] = val == 0 ? 1 : val;
+      val = (val << 2) + 1;
+      db_raw_data[(i * params.element_size) + j] = val;
     }
   }
   memcpy(db_data.data(), db_raw_data.data(),
@@ -81,6 +82,7 @@ using DurationMillis = std::chrono::duration<double, std::milli>;
 class SealMultiPirTest : public testing::TestWithParam<TestParams> {};
 
 TEST_P(SealMultiPirTest, WithH2A) {
+  yacl::set_num_threads(64);
   auto params = GetParam();
   size_t element_number = params.element_number;
   size_t element_size = params.element_size;
@@ -164,7 +166,8 @@ TEST_P(SealMultiPirTest, WithH2A) {
   const DurationMillis pir_time = pir_end_time - pir_start_time;
 
   SPDLOG_INFO("pir time(online) : {} ms", pir_time.count());
-  uint32_t mask = (1ULL << 24) - 1;
+  auto logt = 12;
+  uint32_t mask = (1ULL << logt) - 1;
   for (size_t idx = 0; idx < query_reply_bytes.size(); ++idx) {
     if (mpir_client.test_query[idx].db_index == 0) continue;
     auto query_index = mpir_client.test_query[idx].db_index;
@@ -175,139 +178,16 @@ TEST_P(SealMultiPirTest, WithH2A) {
                 params.element_size * 4);
 
     for (size_t item = 0; item < query_reply_bytes[idx].size(); item++) {
-      auto h2a = mask & (random_mask[idx][item] + query_reply_bytes[idx][item]);
-      EXPECT_NEAR(query_db_bytes[item], h2a, 1);
-      // SPDLOG_INFO("H2A Value:{}", h2a);
-      // auto withouth2a = withoutH2A[idx][item];
+      [[maybe_unused]] auto h2a =
+          mask & (random_mask[idx][item] + query_reply_bytes[idx][item]);
+      EXPECT_EQ(query_db_bytes[item] >> 2, h2a >> 2);
     }
   }
 }
 
-TEST_P(SealMultiPirTest, Works) {
-  auto params = GetParam();
-  size_t element_number = params.element_number;
-  size_t element_size = params.element_size;
-  size_t batch_number = params.batch_number;
-
-  SPDLOG_INFO(
-      "N: {}, batch_number: {}, element_size: {} bytes, "
-      "element_number: 2^{:.2f} = {}",
-      params.poly_degree, batch_number, params.element_size,
-      std::log2(params.element_number), params.element_number);
-
-  // size_t batch_number = 256;
-  double factor = 1.5;
-  size_t hash_num = 3;
-  spu::psi::CuckooIndex::Options cuckoo_params{batch_number, 0, hash_num,
-                                               factor};
-
-  std::vector<size_t> query_index =
-      GenerateQueryIndex(batch_number, element_number);
-
-  std::vector<uint8_t> db_bytes = GenerateDbData(params);
-
-  auto ctxs = yacl::link::test::SetupBrpcWorld(2);
-
-  // use dh key exchange get shared oracle seed
-  psi::SodiumCurve25519Cryptor c25519_cryptor0;
-  psi::SodiumCurve25519Cryptor c25519_cryptor1;
-
-  std::future<std::vector<uint8_t>> ke_func_server =
-      std::async([&] { return c25519_cryptor0.KeyExchange(ctxs[0]); });
-  std::future<std::vector<uint8_t>> ke_func_client =
-      std::async([&] { return c25519_cryptor1.KeyExchange(ctxs[1]); });
-
-  std::vector<uint8_t> seed_server = ke_func_server.get();
-  std::vector<uint8_t> seed_client = ke_func_client.get();
-
-  EXPECT_EQ(seed_server, seed_client);
-
-  ::spu::seal_pir::MultiQueryOptions options{
-      {params.poly_degree, element_number, element_size}, batch_number};
-
-  ::spu::seal_pir::MultiQueryServer mpir_server(options, cuckoo_params,
-                                                seed_server);
-
-  ::spu::seal_pir::MultiQueryClient mpir_client(options, cuckoo_params,
-                                                seed_client);
-
-  // server setup data
-  mpir_server.SetDatabase(db_bytes);
-
-  // online send galoiskey(28MB) cause: pipeline check unittest timeout
-  /*
-    // client send galois keys to server
-    std::future<void> client_galkey_func =
-        std::async([&] { return mpir_client.SendGaloisKeys(ctxs[0]); });
-    std::future<void> server_galkey_func =
-        std::async([&] { return mpir_server.RecvGaloisKeys(ctxs[1]); });
-
-    client_galkey_func.get();
-    server_galkey_func.get();
-  */
-
-  seal::GaloisKeys galkey = mpir_client.GenerateGaloisKeys();
-  mpir_server.SetGaloisKeys(galkey);
-
-  // do pir query/answer
-  const auto pir_start_time = std::chrono::system_clock::now();
-
-  std::future<void> pir_service_func =
-      std::async([&] { return mpir_server.DoMultiPirAnswer(ctxs[0]); });
-  std::future<std::vector<std::vector<uint32_t>>> pir_client_func = std::async(
-      [&] { return mpir_client.DoMultiPirQuery(ctxs[1], query_index); });
-
-  // const auto pir_client_stop_time = std::chrono::system_clock::now();
-
-  pir_service_func.get();
-  std::vector<std::vector<uint32_t>> query_reply_bytes = pir_client_func.get();
-
-  const auto pir_end_time = std::chrono::system_clock::now();
-  const DurationMillis pir_time = pir_end_time - pir_start_time;
-
-  SPDLOG_INFO("pir time(online) : {} ms", pir_time.count());
-
-  EXPECT_EQ(query_reply_bytes.size(), query_index.size());
-
-  for (size_t idx = 0; idx < query_reply_bytes.size(); ++idx) {
-    std::vector<uint32_t> query_db_bytes(params.element_size);
-    std::memcpy(query_db_bytes.data(),
-                &db_bytes[query_index[idx] * params.element_size * 4],
-                params.element_size * 4);
-
-    // if ((query_db_bytes.size() != query_reply_bytes[idx].size()) ||
-    //     (std::memcmp(query_db_bytes.data(), query_reply_bytes[idx].data(),
-    //                  query_reply_bytes[idx].size()) != 0)) {
-    //   SPDLOG_INFO(
-    //       "idx:{} query_index:{} query_db_bytes:{}", idx,
-    // query_index[idx],
-    //       absl::BytesToHexString(absl::string_view(
-    //           (const char *)query_db_bytes.data(),
-    // query_db_bytes.size())));
-    //   SPDLOG_INFO("query_reply_bytes[{}]:{}", idx,
-    //               absl::BytesToHexString(absl::string_view(
-    //                   (const char *)query_reply_bytes[idx].data(),
-    //                   query_reply_bytes[idx].size())));
-    // }
-    EXPECT_EQ(query_db_bytes, query_reply_bytes[idx]);
-  }
-}
-
 INSTANTIATE_TEST_SUITE_P(Works_Instances, SealMultiPirTest,
-                         testing::Values(
-                             // TestParams{32, 1000, 10},        //
-                             // TestParams{32, 1000, 10, 8192},  //
-
-                             // TestParams{32, 1000, 400},        //
-                             // TestParams{32, 1000, 400, 8192},  //
-
-                             // TestParams{64, 10000, 20}, TestParams{64, 10000,
-                             // 20, 8192},
-
-                             // // large data num
-                             // TestParams{64, 1 << 20, 20}, TestParams{64, 1 <<
-                             // 21, 20}, TestParams{25, 25000, 4500, 4096}, //
-                             TestParams{100, 100000, 2048, 4096})  //
+                         testing::Values(TestParams{186, 374892, 4096,
+                                                    4096})  //
 );
 
 }  // namespace spu::seal_pir

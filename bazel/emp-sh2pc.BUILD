@@ -31,6 +31,7 @@ spu_cmake_external(
         "EMP-TOOL_LIBRARY": "$EXT_BUILD_DEPS/emp-tool/lib",
         "OPENSSL_ROOT_DIR": "$EXT_BUILD_DEPS/openssl",
         "BUILD_TESTING": "OFF",
+        "THREADING": "ON",
     },
     lib_source = ":all_srcs",
     # out_data_sdirs = ["cmake"],

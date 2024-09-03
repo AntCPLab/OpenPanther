@@ -45,7 +45,6 @@ uint64_t ElementsPerPtxt(uint32_t logt, uint64_t N, uint64_t ele_size) {
   // adjust ele_size = coef_per_ele;
   // uint64_t coeff_per_ele = CoefficientsPerElement(logt, ele_size);
   uint64_t ele_per_ptxt = 1;
-  YACL_ENFORCE(ele_per_ptxt > 0);
   return ele_per_ptxt;
 }
 
@@ -103,6 +102,7 @@ void CoeffsToBytes(uint32_t limit, const seal::Plaintext &coeffs,
                    uint32_t *output, uint32_t ele_size) {
   uint64_t mask = (1ULL << limit) - 1;
   for (uint32_t i = 0; i < coeffs.coeff_count() && i < ele_size; i++) {
+    // std::cout << i << std::endl;
     output[i] = static_cast<uint32_t>(coeffs[i] & mask);
     // std::cout << output[i] << std::endl;
   }
@@ -229,31 +229,36 @@ void SealPir::SetPolyModulusDegree(size_t degree) {
   if (degree < 4096) {
     YACL_THROW("poly_modulus_degree {} is not support.", degree);
   }
-  enc_params_ =
+  enc_params_[0] =
       std::make_unique<seal::EncryptionParameters>(seal::scheme_type::bfv);
-  enc_params_->set_poly_modulus_degree(degree);
-  enc_params_->set_plain_modulus((1ULL << options_.logt));
-  // enc_params_->set_plain_modulus((1ULL << options_.logt));
-  // enc_params_->set_plain_modulus(
-  // seal::PlainModulus::Batching(degree, options_.logt + 1));
-  // enc_params_->set_coeff_modulus(seal::CoeffModulus::BFVDefault(degree));
-  enc_params_->set_coeff_modulus(
+  enc_params_[0]->set_poly_modulus_degree(degree);
+  enc_params_[0]->set_plain_modulus((1ULL << options_.logt));
+  enc_params_[0]->set_coeff_modulus(
+      seal::CoeffModulus::Create(degree, {24, 36, 37}));
+  // enc_params_[0]->set_coeff_modulus(
+  // seal::CoeffModulus::Create(degree, {44, 45, 45, 45}));
+  enc_params_[1] =
+      std::make_unique<seal::EncryptionParameters>(seal::scheme_type::bfv);
+  enc_params_[1]->set_plain_modulus(
+      (enc_params_[0]->coeff_modulus()[0].value()));
+  enc_params_[1]->set_poly_modulus_degree(degree);
+  enc_params_[1]->set_coeff_modulus(
       seal::CoeffModulus::Create(degree, {36, 36, 37}));
 
-  context_ = std::make_unique<seal::SEALContext>(*(enc_params_));
+  context_[0] = std::make_unique<seal::SEALContext>(*(enc_params_[0]));
+  context_[1] = std::make_unique<seal::SEALContext>(*(enc_params_[1]));
 }
 
 void SealPir::SetPirParams(size_t element_number, size_t element_size) {
-  uint32_t logt = std::floor(std::log2(enc_params_->plain_modulus().value()));
-  uint32_t N = enc_params_->poly_modulus_degree();
-
+  uint32_t logt =
+      std::floor(std::log2(enc_params_[0]->plain_modulus().value()));
+  uint32_t N = enc_params_[0]->poly_modulus_degree();
   // one FV plaintext can hold how many elements
   uint64_t elements_per_plaintext = ElementsPerPtxt(logt, N, element_size);
 
   // number of FV plaintexts needed to represent all elements
   uint64_t num_of_plaintexts =
       PlaintextsPerDb(logt, N, element_number, element_size);
-
   // TODO(ljy): let d be 2 and which can be faster
   size_t d = 2;
   // if (element_number > 8192) {
@@ -263,11 +268,11 @@ void SealPir::SetPirParams(size_t element_number, size_t element_size) {
   std::vector<uint64_t> nvec = GetDimensions(num_of_plaintexts, d);
 
   // TODO:expansion ratio modulus switch
-  uint32_t expansion_ratio = 0;
-  for (const auto &modulus : enc_params_->coeff_modulus()) {
-    double logqi = std::log2(modulus.value());
-    expansion_ratio += ceil(logqi / logt);
-  }
+  uint32_t expansion_ratio = 1;
+  // for (const auto &modulus : enc_params_->coeff_modulus()) {
+  // double logqi = std::log2(modulus.value());
+  // expansion_ratio += ceil(logqi / logt);
+  // }
 
   // dimension
   pir_params_.enable_symmetric = true;
@@ -281,6 +286,8 @@ void SealPir::SetPirParams(size_t element_number, size_t element_size) {
   pir_params_.slot_count = N;
   // because one ciphertext = two polys
   pir_params_.expansion_ratio = expansion_ratio << 1;
+
+  // std::cout << "Set End" << std::endl;
 }
 
 std::string SealPir::SerializePlaintexts(
@@ -306,7 +313,7 @@ std::vector<seal::Plaintext> SealPir::DeSerializePlaintexts(
                      [&](int64_t begin, int64_t end) {
                        for (int i = begin; i < end; ++i) {
                          plains[i] = DeSerializeSealObject<seal::Plaintext>(
-                             plains_proto.data(i), safe_load);
+                             plains_proto.data(i), 0, safe_load);
                        }
                      });
   return plains;
@@ -327,26 +334,25 @@ yacl::Buffer SealPir::SerializeCiphertexts(
   return b;
 }
 
-std::vector<seal::Ciphertext> SealPir::DeSerializeCiphertexts(
+std::vector<seal::Ciphertext> SealPir::DeSerializeAnswers(
     const CiphertextsProto &ciphers_proto, bool safe_load) {
   std::vector<seal::Ciphertext> ciphers(ciphers_proto.ciphers_size());
-
   yacl::parallel_for(0, ciphers_proto.ciphers_size(),
                      [&](int64_t begin, int64_t end) {
                        for (int i = begin; i < end; ++i) {
                          ciphers[i] = DeSerializeSealObject<seal::Ciphertext>(
-                             ciphers_proto.ciphers(i), safe_load);
+                             ciphers_proto.ciphers(i), 1, safe_load);
                        }
                      });
   return ciphers;
 }
 
-std::vector<seal::Ciphertext> SealPir::DeSerializeCiphertexts(
+std::vector<seal::Ciphertext> SealPir::DeSerializeAnswers(
     const yacl::Buffer &ciphers_buffer, bool safe_load) {
   CiphertextsProto ciphers_proto;
   ciphers_proto.ParseFromArray(ciphers_buffer.data(), ciphers_buffer.size());
 
-  return DeSerializeCiphertexts(ciphers_proto, safe_load);
+  return DeSerializeAnswers(ciphers_proto, safe_load);
 }
 
 yacl::Buffer SealPir::SerializeQuery(
@@ -390,7 +396,7 @@ std::vector<std::vector<seal::Ciphertext>> SealPir::DeSerializeQuery(
           pir_query[i].resize(ciphers.ciphers_size());
           for (int j = 0; j < ciphers.ciphers_size(); ++j) {
             pir_query[i][j] = DeSerializeSealObject<seal::Ciphertext>(
-                ciphers.ciphers(j), safe_load);
+                ciphers.ciphers(j), i % 2, safe_load);
           }
         }
       });
@@ -417,19 +423,28 @@ SealPirServer::SealPirServer(const SealPirOptions &options,
     : SealPir(options),
       plaintext_store_(std::move(plaintext_store)),
       is_db_preprocessed_(false) {
-  yacl::set_num_threads(1);
+  // yacl::set_num_threads(72);
   impl_ = std::make_shared<Impl>();
 
-  std::vector<seal::Modulus> raw_modulus = enc_params_->coeff_modulus();
-  std::vector<seal::Modulus> modulus = enc_params_->coeff_modulus();
-  modulus.pop_back();
-  modulus.pop_back();
-  enc_params_->set_coeff_modulus(modulus);
-  seal::SEALContext test_context(*enc_params_, false,
-                                 seal::sec_level_type::none);
-  enc_params_->set_coeff_modulus(raw_modulus);
-  msh_ = std::make_unique<spu::mpc::cheetah::ModulusSwitchHelper>(test_context,
-                                                                  options.logt);
+  my_pool_ = seal::MemoryPoolHandle::New();
+  for (size_t i = 0; i < 2; i++) {
+    std::vector<seal::Modulus> raw_modulus = enc_params_[i]->coeff_modulus();
+    std::vector<seal::Modulus> modulus = enc_params_[i]->coeff_modulus();
+    modulus.pop_back();
+    modulus.pop_back();
+    enc_params_[i]->set_coeff_modulus(modulus);
+    seal::SEALContext test_context(*(enc_params_[i]), false,
+                                   seal::sec_level_type::none);
+
+    enc_params_[i]->set_coeff_modulus(raw_modulus);
+    msh_ = std::make_unique<spu::mpc::cheetah::ModulusSwitchHelper>(
+        test_context, options.logt);
+
+    seal::util::RNSBase coeff_base(modulus, my_pool_);
+    rns_tool_[i] = std::make_unique<seal::util::RNSTool>(
+        enc_params_[i]->poly_modulus_degree(), coeff_base,
+        enc_params_[i]->plain_modulus(), my_pool_);
+  }
 }
 #endif
 
@@ -442,8 +457,9 @@ void SealPirServer::SetDatabase(
   // SPDLOG_INFO("DB ByteSize:{}", db_provider->GetDbByteSize());
   YACL_ENFORCE(db_provider->GetDbByteSize() == db_size);
 
-  uint32_t logt = std::floor(std::log2(enc_params_->plain_modulus().value()));
-  uint32_t N = enc_params_->poly_modulus_degree();
+  uint32_t logt =
+      std::floor(std::log2(enc_params_[0]->plain_modulus().value()));
+  uint32_t N = enc_params_[0]->poly_modulus_degree();
 
   // number of FV plaintexts needed to represent all elements
   uint64_t num_of_plaintexts;
@@ -564,8 +580,8 @@ void SealPirServer::SetDatabase(
     // pre process db
     yacl::parallel_for(0, db_vec.size(), [&](int64_t begin, int64_t end) {
       for (uint32_t i = begin; i < end; i++) {
-        evaluator_->transform_to_ntt_inplace(db_vec[i],
-                                             context_->first_parms_id());
+        evaluator_[0]->transform_to_ntt_inplace(db_vec[i],
+                                                context_[0]->first_parms_id());
       }
     });
     plaintext_store_->SavePlaintexts(db_vec, idx);
@@ -591,15 +607,15 @@ void SealPirServer::SetDatabase(
 }
 
 std::vector<seal::Ciphertext> SealPirServer::ExpandQuery(
-    const seal::Ciphertext &encrypted, std::uint32_t m) {
-  seal::GaloisKeys &galkey = galois_key_;
+    const seal::Ciphertext &encrypted, std::uint32_t m, size_t dim) {
+  seal::GaloisKeys &galkey = galois_key_[dim];
 
   // Assume that m is a power of 2. If not, round it to the next power of 2.
   uint32_t logm = std::ceil(std::log2(m));
   seal::Plaintext two("2");
 
   std::vector<int> galois_elts;
-  auto n = enc_params_->poly_modulus_degree();
+  auto n = enc_params_[0]->poly_modulus_degree();
   YACL_ENFORCE(logm <= std::ceil(std::log2(n)), "m > n is not allowed.");
 
   galois_elts.reserve(std::ceil(std::log2(n)));
@@ -624,15 +640,16 @@ std::vector<seal::Ciphertext> SealPirServer::ExpandQuery(
     int index = (index_raw * galois_elts[i]) % (n << 1);
 
     for (uint32_t a = 0; a < temp.size(); a++) {
-      evaluator_->apply_galois(temp[a], galois_elts[i], galkey,
-                               tempctxt_rotated);
-      evaluator_->add(temp[a], tempctxt_rotated, newtemp[a]);
-      multiply_power_of_X(temp[a], tempctxt_shifted, index_raw);
+      evaluator_[dim]->apply_galois(temp[a], galois_elts[i], galkey,
+                                    tempctxt_rotated);
+      evaluator_[dim]->add(temp[a], tempctxt_rotated, newtemp[a]);
+      multiply_power_of_X(temp[a], tempctxt_shifted, index_raw, dim);
 
-      multiply_power_of_X(tempctxt_rotated, tempctxt_rotatedshifted, index);
+      multiply_power_of_X(tempctxt_rotated, tempctxt_rotatedshifted, index,
+                          dim);
 
-      evaluator_->add(tempctxt_shifted, tempctxt_rotatedshifted,
-                      newtemp[a + temp.size()]);
+      evaluator_[dim]->add(tempctxt_shifted, tempctxt_rotatedshifted,
+                           newtemp[a + temp.size()]);
     }
     temp = newtemp;
   }
@@ -642,16 +659,18 @@ std::vector<seal::Ciphertext> SealPirServer::ExpandQuery(
   int index = (index_raw * galois_elts[logm - 1]) % (n << 1);
   for (uint32_t a = 0; a < temp.size(); a++) {
     if (a >= (m - (1 << (logm - 1)))) {  // corner case.
-      evaluator_->multiply_plain(temp[a], two,
-                                 newtemp[a]);  // plain multiplication by 2.
+      evaluator_[dim]->multiply_plain(
+          temp[a], two,
+          newtemp[a]);  // plain multiplication by 2.
     } else {
-      evaluator_->apply_galois(temp[a], galois_elts[logm - 1], galkey,
-                               tempctxt_rotated);
-      evaluator_->add(temp[a], tempctxt_rotated, newtemp[a]);
-      multiply_power_of_X(temp[a], tempctxt_shifted, index_raw);
-      multiply_power_of_X(tempctxt_rotated, tempctxt_rotatedshifted, index);
-      evaluator_->add(tempctxt_shifted, tempctxt_rotatedshifted,
-                      newtemp[a + temp.size()]);
+      evaluator_[dim]->apply_galois(temp[a], galois_elts[logm - 1], galkey,
+                                    tempctxt_rotated);
+      evaluator_[dim]->add(temp[a], tempctxt_rotated, newtemp[a]);
+      multiply_power_of_X(temp[a], tempctxt_shifted, index_raw, dim);
+      multiply_power_of_X(tempctxt_rotated, tempctxt_rotatedshifted, index,
+                          dim);
+      evaluator_[dim]->add(tempctxt_shifted, tempctxt_rotatedshifted,
+                           newtemp[a + temp.size()]);
     }
   }
 
@@ -664,9 +683,9 @@ std::vector<seal::Ciphertext> SealPirServer::ExpandQuery(
 
 void SealPirServer::multiply_power_of_X(const seal::Ciphertext &encrypted,
                                         seal::Ciphertext &destination,
-                                        uint32_t index) {
-  auto coeff_mod_count = enc_params_->coeff_modulus().size() - 1;
-  auto coeff_count = enc_params_->poly_modulus_degree();
+                                        uint32_t index, size_t dim) {
+  auto coeff_mod_count = enc_params_[dim]->coeff_modulus().size() - 1;
+  auto coeff_count = enc_params_[dim]->poly_modulus_degree();
   auto encrypted_count = encrypted.size();
 
   destination = encrypted;
@@ -674,7 +693,7 @@ void SealPirServer::multiply_power_of_X(const seal::Ciphertext &encrypted,
     for (size_t j = 0; j < coeff_mod_count; j++) {
       seal::util::negacyclic_shift_poly_coeffmod(
           encrypted.data(i) + (j * coeff_count), coeff_count, index,
-          enc_params_->coeff_modulus()[j],
+          enc_params_[dim]->coeff_modulus()[j],
           destination.data(i) + (j * coeff_count));
     }
   }
@@ -682,7 +701,7 @@ void SealPirServer::multiply_power_of_X(const seal::Ciphertext &encrypted,
 
 std::vector<seal::Ciphertext> SealPirServer::GenerateReply(
     const std::vector<std::vector<seal::Ciphertext>> &query_ciphers,
-    std::vector<uint32_t> &random) {
+    std::vector<uint64_t> &random) {
   const auto gr_s = std::chrono::system_clock::now();
   std::vector<uint64_t> nvec = pir_params_.nvec;
   uint64_t product = 1;
@@ -705,10 +724,10 @@ std::vector<seal::Ciphertext> SealPirServer::GenerateReply(
 
   auto pool = seal::MemoryManager::GetPool();
 
-  int N = enc_params_->poly_modulus_degree();
+  int N = enc_params_[0]->poly_modulus_degree();
 
   // int logt = std::floor(std::log2(enc_params_->plain_modulus().value()));
-
+  YACL_ENFORCE(nvec.size() == 2);
   for (uint32_t i = 0; i < nvec.size(); i++) {
     // const auto expand_s = std::chrono::system_clock::now();
     std::vector<seal::Ciphertext> expanded_query;
@@ -722,7 +741,7 @@ std::vector<seal::Ciphertext> SealPirServer::GenerateReply(
       }
       // SPDLOG_INFO("dim:{} n:{}", i, n_i);
       std::vector<seal::Ciphertext> expanded_query_part =
-          ExpandQuery(query_ciphers[i][j], total);
+          ExpandQuery(query_ciphers[i][j], total, i);
 
       expanded_query.insert(
           expanded_query.end(),
@@ -741,7 +760,13 @@ std::vector<seal::Ciphertext> SealPirServer::GenerateReply(
     yacl::parallel_for(
         0, expanded_query.size(), [&](int64_t begin, int64_t end) {
           for (uint32_t jj = begin; jj < end; jj++) {
-            evaluator_->transform_to_ntt_inplace(expanded_query[jj]);
+            // auto s = std::chrono::system_clock::now();
+            evaluator_[i]->transform_to_ntt_inplace(expanded_query[jj]);
+
+            // auto e = std::chrono::system_clock::now();
+            // DurationMillis t = e - s;
+            // std::cout << "begin: end: time: " << begin << " " << end << " "
+            // << t.count() << std::endl;
           }
         });
 
@@ -749,8 +774,8 @@ std::vector<seal::Ciphertext> SealPirServer::GenerateReply(
     if ((!is_db_preprocessed_) || i > 0) {
       yacl::parallel_for(0, cur->size(), [&](int64_t begin, int64_t end) {
         for (uint32_t jj = begin; jj < end; jj++) {
-          evaluator_->transform_to_ntt_inplace((*cur)[jj],
-                                               context_->first_parms_id());
+          evaluator_[i]->transform_to_ntt_inplace(
+              (*cur)[jj], context_[i]->first_parms_id());
         }
       });
     }
@@ -764,18 +789,18 @@ std::vector<seal::Ciphertext> SealPirServer::GenerateReply(
         while ((*cur)[k + j * product].is_zero()) {
           j++;
         }
-        evaluator_->multiply_plain(expanded_query[j], (*cur)[k + j * product],
-                                   intermediateCtxts[k]);
+        evaluator_[i]->multiply_plain(
+            expanded_query[j], (*cur)[k + j * product], intermediateCtxts[k]);
 
         seal::Ciphertext temp;
         for (j += 1; j < n_i; j++) {
           if ((*cur)[k + j * product].is_zero()) {
             continue;
           }
-          evaluator_->multiply_plain(expanded_query[j], (*cur)[k + j * product],
-                                     temp);
-          evaluator_->add_inplace(intermediateCtxts[k],
-                                  temp);  // Adds to first component.
+          evaluator_[i]->multiply_plain(expanded_query[j],
+                                        (*cur)[k + j * product], temp);
+          evaluator_[i]->add_inplace(intermediateCtxts[k],
+                                     temp);  // Adds to first component.
         }
       }
     });
@@ -783,33 +808,38 @@ std::vector<seal::Ciphertext> SealPirServer::GenerateReply(
     yacl::parallel_for(
         0, intermediateCtxts.size(), [&](int64_t begin, int64_t end) {
           for (uint32_t jj = begin; jj < end; jj++) {
-            evaluator_->transform_from_ntt_inplace(intermediateCtxts[jj]);
+            evaluator_[i]->transform_from_ntt_inplace(intermediateCtxts[jj]);
             if (pir_params_.enable_mswitching) {
-              evaluator_->mod_switch_to_inplace(intermediateCtxts[jj],
-                                                context_->last_parms_id());
-            } else {
+              evaluator_[i]->mod_switch_to_inplace(
+                  intermediateCtxts[jj], context_[i]->last_parms_id());
+              seal::Ciphertext zero_ct;
+              if (i != nvec.size() - 1) {
+                seal::util::encrypt_zero_asymmetric(
+                    public_key_[i], *context_[i], context_[i]->last_parms_id(),
+                    intermediateCtxts[jj].is_ntt_form(), zero_ct);
+                evaluator_[i]->add_inplace(intermediateCtxts[jj], zero_ct);
+              }
             }
           }
         });
 
     if (i == nvec.size() - 1) {
+      H2A(intermediateCtxts, random);
       const auto gr_e = std::chrono::system_clock::now();
       const DurationMillis g_reply_time = gr_e - gr_s;
       // SPDLOG_INFO("Generate reply time: {}", g_reply_time.count());
       return intermediateCtxts;
     } else {
-      YACL_ENFORCE(nvec.size() == 2);
       intermediate_plain.clear();
       intermediate_plain.reserve(pir_params_.expansion_ratio * product);
       cur = &intermediate_plain;
-      H2A(intermediateCtxts, random);
 
       for (uint64_t rr = 0; rr < product; rr++) {
         seal::EncryptionParameters parms;
         if (pir_params_.enable_mswitching) {
-          parms = context_->last_context_data()->parms();
+          parms = context_[i]->last_context_data()->parms();
         } else {
-          parms = context_->first_context_data()->parms();
+          parms = context_[i]->first_context_data()->parms();
         }
 
         std::vector<seal::Plaintext> plains =
@@ -853,17 +883,14 @@ std::vector<seal::Ciphertext> SealPirServer::GenerateReply(
 
   std::vector<seal::Plaintext> intermediate_plain;  // decompose....
 
-  auto pool = seal::MemoryManager::GetPool();
-
-  int N = enc_params_->poly_modulus_degree();
-
   // int logt = std::floor(std::log2(enc_params_->plain_modulus().value()));
 
+  YACL_ENFORCE(nvec.size() == 2);
   for (uint32_t i = 0; i < nvec.size(); i++) {
     std::vector<seal::Ciphertext> expanded_query;
 
+    int N = enc_params_[i]->poly_modulus_degree();
     uint64_t n_i = nvec[i];
-
     for (uint32_t j = 0; j < query_ciphers[i].size(); j++) {
       uint64_t total = N;
       if (j == query_ciphers[i].size() - 1) {
@@ -872,11 +899,11 @@ std::vector<seal::Ciphertext> SealPirServer::GenerateReply(
       // SPDLOG_INFO("dim:{} n:{}", i, n_i);
       const auto expand_s = std::chrono::system_clock::now();
       std::vector<seal::Ciphertext> expanded_query_part =
-          ExpandQuery(query_ciphers[i][j], total);
-
+          ExpandQuery(query_ciphers[i][j], total, i);
       const auto expand_e = std::chrono::system_clock::now();
       const DurationMillis expand_time = expand_e - expand_s;
-      // SPDLOG_INFO("Expand time: {} ms", expand_time.count());
+      SPDLOG_INFO("Expand time: {} ms", expand_time.count());
+      SPDLOG_INFO("Expand num: {}", expanded_query_part.size());
       expanded_query.insert(
           expanded_query.end(),
           std::make_move_iterator(expanded_query_part.begin()),
@@ -896,7 +923,8 @@ std::vector<seal::Ciphertext> SealPirServer::GenerateReply(
     //   if (expandPlain.is_zero()) {
     //     std::cout << "ii: " << ii << " plaintext is Zero" << "\n";
     //   }else {
-    //     std::cout << "ii: " << ii << ", plaintext: " << expandPlain.data()[0]
+    //     std::cout << "ii: " << ii << ", plaintext: " <<
+    //     expandPlain.data()[0]
     //     << "\n";
     //   }
     //  }
@@ -915,19 +943,26 @@ std::vector<seal::Ciphertext> SealPirServer::GenerateReply(
 #endif
 
     // Transform expanded query to NTT, and ...
+
+    const auto ntt_s = std::chrono::system_clock::now();
     yacl::parallel_for(
         0, expanded_query.size(), [&](int64_t begin, int64_t end) {
           for (uint32_t jj = begin; jj < end; jj++) {
-            evaluator_->transform_to_ntt_inplace(expanded_query[jj]);
+            evaluator_[i]->transform_to_ntt_inplace(expanded_query[jj]);
           }
         });
 
+    const auto ntt_e = std::chrono::system_clock::now();
+    const DurationMillis ntt_time = ntt_e - ntt_s;
+    SPDLOG_INFO("NTT Time: {} ms", ntt_time.count());
+
     // Transform plaintext to NTT. If database is pre-processed, can skip
     if ((!is_db_preprocessed_) || i > 0) {
+      SPDLOG_INFO("Doing plaintext NTT!");
       yacl::parallel_for(0, cur->size(), [&](int64_t begin, int64_t end) {
         for (uint32_t jj = begin; jj < end; jj++) {
-          evaluator_->transform_to_ntt_inplace((*cur)[jj],
-                                               context_->first_parms_id());
+          evaluator_[i]->transform_to_ntt_inplace(
+              (*cur)[jj], context_[i]->first_parms_id());
         }
       });
     }
@@ -949,20 +984,20 @@ std::vector<seal::Ciphertext> SealPirServer::GenerateReply(
         while ((*cur)[k + j * product].is_zero()) {
           j++;
         }
-        evaluator_->multiply_plain(expanded_query[j], (*cur)[k + j * product],
-                                   intermediateCtxts[k]);
+        evaluator_[i]->multiply_plain(
+            expanded_query[j], (*cur)[k + j * product], intermediateCtxts[k]);
 
         seal::Ciphertext temp;
         for (j += 1; j < n_i; j++) {
           if ((*cur)[k + j * product].is_zero()) {
-            // SPDLOG_INFO("cur[{}] is zero, k:{}, j:{}", (k + j * product), k,
-            // j);
+            // SPDLOG_INFO("cur[{}] is zero, k:{}, j:{}", (k + j * product),
+            // k, j);
             continue;
           }
-          evaluator_->multiply_plain(expanded_query[j], (*cur)[k + j * product],
-                                     temp);
-          evaluator_->add_inplace(intermediateCtxts[k],
-                                  temp);  // Adds to first component.
+          evaluator_[i]->multiply_plain(expanded_query[j],
+                                        (*cur)[k + j * product], temp);
+          evaluator_[i]->add_inplace(intermediateCtxts[k],
+                                     temp);  // Adds to first component.
         }
       }
     });
@@ -970,15 +1005,16 @@ std::vector<seal::Ciphertext> SealPirServer::GenerateReply(
     yacl::parallel_for(
         0, intermediateCtxts.size(), [&](int64_t begin, int64_t end) {
           for (uint32_t jj = begin; jj < end; jj++) {
-            evaluator_->transform_from_ntt_inplace(intermediateCtxts[jj]);
+            evaluator_[i]->transform_from_ntt_inplace(intermediateCtxts[jj]);
             if (pir_params_.enable_mswitching) {
-              evaluator_->mod_switch_to_inplace(intermediateCtxts[jj],
-                                                context_->last_parms_id());
+              evaluator_[i]->mod_switch_to_inplace(
+                  intermediateCtxts[jj], context_[i]->last_parms_id());
             } else {
+              SPDLOG_INFO(" Must enable mod switch! ");
             }
           }
         });
-
+    SPDLOG_INFO("Modulus switch done!");
     if (i == nvec.size() - 1) {
       const auto gr_e = std::chrono::system_clock::now();
 
@@ -989,19 +1025,18 @@ std::vector<seal::Ciphertext> SealPirServer::GenerateReply(
       intermediate_plain.clear();
       intermediate_plain.reserve(pir_params_.expansion_ratio * product);
       cur = &intermediate_plain;
-
+      SPDLOG_INFO("Prepare for dim 2");
       for (uint64_t rr = 0; rr < product; rr++) {
         seal::EncryptionParameters parms;
         if (pir_params_.enable_mswitching) {
-          parms = context_->last_context_data()->parms();
-          evaluator_->mod_switch_to_inplace(intermediateCtxts[rr],
-                                            context_->last_parms_id());
+          parms = context_[i]->last_context_data()->parms();
         } else {
-          parms = context_->first_context_data()->parms();
+          parms = context_[i]->first_context_data()->parms();
         }
 
         std::vector<seal::Plaintext> plains =
             DecomposeToPlaintexts(parms, intermediateCtxts[rr]);
+        // SPDLOG_INFO(" Decompose done! ");
 
         for (uint32_t jj = 0; jj < plains.size(); jj++) {
           intermediate_plain.emplace_back(plains[jj]);
@@ -1017,32 +1052,18 @@ std::vector<seal::Ciphertext> SealPirServer::GenerateReply(
 
 vector<seal::Plaintext> SealPirServer::DecomposeToPlaintexts(
     seal::EncryptionParameters params, const seal::Ciphertext &ct) {
-  const uint32_t pt_bits_per_coeff = log2(params.plain_modulus().value());
   const auto coeff_count = params.poly_modulus_degree();
   const auto coeff_mod_count = params.coeff_modulus().size();
-  const uint64_t pt_bitmask = (1 << pt_bits_per_coeff) - 1;
-
-  vector<seal::Plaintext> result(ComputeExpansionRatio(params) * ct.size());
+  YACL_ENFORCE(coeff_mod_count == 1);
+  vector<seal::Plaintext> result(ct.size(), seal::Plaintext(coeff_count));
   auto pt_iter = result.begin();
   for (size_t poly_index = 0; poly_index < ct.size(); ++poly_index) {
     for (size_t coeff_mod_index = 0; coeff_mod_index < coeff_mod_count;
          ++coeff_mod_index) {
-      const double coeff_bit_size =
-          log2(params.coeff_modulus()[coeff_mod_index].value());
-      const size_t local_expansion_ratio =
-          ceil(coeff_bit_size / pt_bits_per_coeff);
-      size_t shift = 0;
-      for (size_t i = 0; i < local_expansion_ratio; ++i) {
-        pt_iter->resize(coeff_count);
-        for (size_t c = 0; c < coeff_count; ++c) {
-          (*pt_iter)[c] =
-              (ct.data(poly_index)[coeff_mod_index * coeff_count + c] >>
-               shift) &
-              pt_bitmask;
-        }
-        ++pt_iter;
-        shift += pt_bits_per_coeff;
+      for (size_t c = 0; c < coeff_count; ++c) {
+        (*pt_iter)[c] = ct.data(poly_index)[coeff_mod_index * coeff_count + c];
       }
+      ++pt_iter;
     }
   }
   return result;
@@ -1063,28 +1084,32 @@ void SealPirServer::DeSerializeDbPlaintext(
 
 void SealPirServer::RecvPublicKey(
     const std::shared_ptr<yacl::link::Context> &link_ctx) {
-  yacl::Buffer pubkey_buffer = link_ctx->Recv(
-      link_ctx->NextRank(),
-      fmt::format("recv public key from rank-{}", link_ctx->Rank()));
+  for (size_t i = 0; i < 2; i++) {
+    yacl::Buffer pubkey_buffer = link_ctx->Recv(
+        link_ctx->NextRank(),
+        fmt::format("recv public key from rank-{}", link_ctx->Rank()));
 
-  std::string pubkey_str(pubkey_buffer.size(), '\0');
-  std::memcpy(pubkey_str.data(), pubkey_buffer.data(), pubkey_buffer.size());
+    std::string pubkey_str(pubkey_buffer.size(), '\0');
+    std::memcpy(pubkey_str.data(), pubkey_buffer.data(), pubkey_buffer.size());
 
-  auto pubkey = DeSerializeSealObject<seal::PublicKey>(pubkey_str);
-  SetPublicKey(pubkey);
+    auto pubkey = DeSerializeSealObject<seal::PublicKey>(pubkey_str, i);
+    SetPublicKey(pubkey, i);
+  }
 }
 
 void SealPirServer::RecvGaloisKeys(
     const std::shared_ptr<yacl::link::Context> &link_ctx) {
-  yacl::Buffer galkey_buffer = link_ctx->Recv(
-      link_ctx->NextRank(),
-      fmt::format("recv galios key from rank-{}", link_ctx->Rank()));
+  for (size_t i = 0; i < 2; i++) {
+    yacl::Buffer galkey_buffer = link_ctx->Recv(
+        link_ctx->NextRank(),
+        fmt::format("recv galios key from rank-{}", link_ctx->Rank()));
 
-  std::string galkey_str(galkey_buffer.size(), '\0');
-  std::memcpy(galkey_str.data(), galkey_buffer.data(), galkey_buffer.size());
+    std::string galkey_str(galkey_buffer.size(), '\0');
+    std::memcpy(galkey_str.data(), galkey_buffer.data(), galkey_buffer.size());
 
-  auto galkey = DeSerializeSealObject<seal::GaloisKeys>(galkey_str);
-  SetGaloisKeys(galkey);
+    auto galkey = DeSerializeSealObject<seal::GaloisKeys>(galkey_str, i);
+    SetGaloisKeys(galkey, i);
+  }
 }
 
 void SealPirServer::DoPirAnswer(
@@ -1095,13 +1120,17 @@ void SealPirServer::DoPirAnswer(
   SealPirQueryProto query_proto;
   query_proto.ParseFromArray(query_buffer.data(), query_buffer.size());
 
+  SPDLOG_INFO("Server received query");
+
   std::vector<std::vector<seal::Ciphertext>> query_ciphers =
       DeSerializeQuery(query_proto);
-  SPDLOG_INFO("Server received query and finished deserialize query");
+  SPDLOG_INFO("Finished deserialize query");
+  // SPDLOG_INFO("Start Generate Reply");
+  auto poly_degree = enc_params_[0]->poly_modulus_degree();
+  std::vector<uint64_t> random(poly_degree);
 
   std::vector<seal::Ciphertext> reply_ciphers =
-      GenerateReply(query_ciphers, query_proto.start_pos());
-
+      GenerateReply(query_ciphers, random);
   yacl::Buffer reply_buffer = SerializeCiphertexts(reply_ciphers);
   link_ctx->SendAsync(
       link_ctx->NextRank(), reply_buffer,
@@ -1115,54 +1144,61 @@ struct SealPirServer::Impl : public spu::mpc::cheetah::EnableCPRNG {
   Impl(){};
 };
 
-void SealPirServer::DecodePolyToVector(const seal::Plaintext &poly,
-                                       std::vector<uint32_t> &out) {
-  auto poly_wrap = absl::MakeConstSpan(poly.data(), poly.coeff_count());
-  auto out_wrap =
-      absl::MakeSpan(out.data(), enc_params_->poly_modulus_degree());
-  msh_->ModulusDownRNS(poly_wrap, out_wrap);
+void SealPirServer::DecodePolyToVector(seal::Plaintext &poly,
+                                       seal::Plaintext &dest, size_t degree,
+                                       size_t dim) {
+  seal::util::RNSIter iter(poly.data(), degree);
+  dest.parms_id() = seal::parms_id_zero;
+  dest.resize(degree);
+  rns_tool_[dim]->decrypt_scale_and_round(iter, dest.data(), my_pool_);
 }
 
 void SealPirServer::H2A(std::vector<seal::Ciphertext> &ct,
-                        std::vector<uint32_t> &random_mask) {
+                        std::vector<uint64_t> &random_mask) {
   seal::Plaintext rand;
   seal::Ciphertext zero_ct;
-  std::vector<uint32_t> out(enc_params_->poly_modulus_degree(), 0);
 
-  impl_->UniformPoly(*context_, &rand, ct[0].parms_id());
-  DecodePolyToVector(rand, out);
-  memcpy(random_mask.data(), out.data(), random_mask.size() * 4);
+  impl_->UniformPoly(*context_[1], &rand, ct[0].parms_id());
+  seal::Plaintext dest;
+  DecodePolyToVector(rand, dest, enc_params_[1]->poly_modulus_degree(), 1);
+  seal::Plaintext dest_2;
 
-  for (size_t idx = 0; idx < ct.size(); idx++) {
+  DecodePolyToVector(dest, dest_2, enc_params_[0]->poly_modulus_degree(), 0);
+
+  memcpy(random_mask.data(), dest_2.data(), random_mask.size() * 8);
+  for (size_t idx = 0; idx < ct.size(); idx = idx + 2) {
     // TODO(ljy): preprocess generate more encrypted_zero
-    spu::mpc::cheetah::ModulusSwtichInplace(ct[idx], 1, *context_);
-    seal::util::encrypt_zero_asymmetric(public_key_, *context_,
+    // spu::mpc::cheetah::ModulusSwtichInplace(ct[idx], 1, *context_[1]);
+    seal::util::encrypt_zero_asymmetric(public_key_[1], *context_[1],
                                         ct[idx].parms_id(),
                                         ct[idx].is_ntt_form(), zero_ct);
-    evaluator_->add_inplace(ct[idx], zero_ct);
-    spu::mpc::cheetah::SubPlainInplace(ct[idx], rand, *context_);
+    evaluator_[1]->add_inplace(ct[idx], zero_ct);
+    spu::mpc::cheetah::SubPlainInplace(ct[idx], rand, *context_[1]);
   }
 }
 
 // Client Defination
 // SealPirClient
 SealPirClient::SealPirClient(const SealPirOptions &options) : SealPir(options) {
-  keygen_ = std::make_unique<seal::KeyGenerator>(*context_);
+  for (size_t i = 0; i < 2; i++) {
+    // std::cout << "enc " << i << std::endl;
+    keygen_[i] = std::make_unique<seal::KeyGenerator>(*context_[i]);
+    seal::SecretKey secret_key = keygen_[i]->secret_key();
+    keygen_[i]->create_public_key(public_key_[i]);
 
-  seal::SecretKey secret_key = keygen_->secret_key();
-  keygen_->create_public_key(public_key_);
+    encryptor_[i] =
+        std::make_unique<seal::Encryptor>(*context_[i], public_key_[i]);
+    encryptor_[i]->set_secret_key(secret_key);
 
-  encryptor_ = std::make_unique<seal::Encryptor>(*context_, public_key_);
-  encryptor_->set_secret_key(secret_key);
-
-  decryptor_ = std::make_unique<seal::Decryptor>(*context_, secret_key);
-  yacl::set_num_threads(1);
+    decryptor_[i] = std::make_unique<seal::Decryptor>(*context_[i], secret_key);
+    yacl::set_num_threads(1);
+  }
 }
 
-seal::GaloisKeys SealPirClient::GenerateGaloisKeys() {
+seal::GaloisKeys SealPirClient::GenerateGaloisKeys(size_t index) {
   // Generate the Galois keys needed for coeff_select.
   std::vector<uint32_t> galois_elts;
-  int N = enc_params_->poly_modulus_degree();
+  int N = enc_params_[index]->poly_modulus_degree();
   int logN = seal::util::get_power_of_two(N);
 
   galois_elts.reserve(logN);
@@ -1172,7 +1208,7 @@ seal::GaloisKeys SealPirClient::GenerateGaloisKeys() {
   }
 
   seal::GaloisKeys galois_keys;
-  keygen_->create_galois_keys(galois_elts, galois_keys);
+  keygen_[index]->create_galois_keys(galois_elts, galois_keys);
 
   return galois_keys;
 }
@@ -1181,22 +1217,23 @@ std::vector<std::vector<seal::Ciphertext>> SealPirClient::GenerateQuery(
     size_t index) {
   size_t query_indx = GetQueryIndex(index);
 
-  indices_ = ComputeIndices(query_indx, pir_params_.nvec);
+  auto indices = ComputeIndices(query_indx, pir_params_.nvec);
 
   // ComputeInverseScales();
-
+  YACL_ENFORCE(indices.size() == 2);
   std::vector<std::vector<seal::Ciphertext>> result(pir_params_.d);
-  int N = enc_params_->poly_modulus_degree();
+  int N = enc_params_[0]->poly_modulus_degree();
 
-  seal::Plaintext pt(enc_params_->poly_modulus_degree());
-  for (uint32_t i = 0; i < indices_.size(); i++) {
+  seal::Plaintext pt(enc_params_[0]->poly_modulus_degree());
+  for (uint32_t i = 0; i < indices.size(); i++) {
     uint32_t num_ptxts = ceil((pir_params_.nvec[i] + 0.0) / N);
+    YACL_ENFORCE(num_ptxts == 1);
     uint64_t log_total;
     for (uint32_t j = 0; j < num_ptxts; j++) {
       pt.set_zero();
 
-      if (indices_[i] >= N * j && indices_[i] <= N * (j + 1)) {
-        uint64_t real_index = indices_[i] - N * j;
+      if (indices[i] >= N * j && indices[i] <= N * (j + 1)) {
+        uint64_t real_index = indices[i] - N * j;
         int64_t n_i = pir_params_.nvec[i];
         uint64_t total = N;
         if (j == num_ptxts - 1) {
@@ -1207,13 +1244,15 @@ std::vector<std::vector<seal::Ciphertext>> SealPirClient::GenerateQuery(
       }
       seal::Ciphertext dest;
       if (pir_params_.enable_symmetric) {
-        encryptor_->encrypt_symmetric(pt, dest);
+        encryptor_[i]->encrypt_symmetric(pt, dest);
       } else {
-        encryptor_->encrypt(pt, dest);
+        encryptor_[i]->encrypt(pt, dest);
       }
 
-      const auto &modulus =
-          context_->get_context_data(dest.parms_id())->parms().coeff_modulus();
+      const auto &modulus = context_[i]
+                                ->get_context_data(dest.parms_id())
+                                ->parms()
+                                .coeff_modulus();
       size_t num_modulus = dest.coeff_modulus_size();
       size_t num_coeff = dest.poly_modulus_degree();
 
@@ -1232,7 +1271,7 @@ std::vector<std::vector<seal::Ciphertext>> SealPirClient::GenerateQuery(
         }
       }
 
-      result[i].push_back(dest);
+      result[i].emplace_back(dest);
     }
   }
 
@@ -1241,18 +1280,6 @@ std::vector<std::vector<seal::Ciphertext>> SealPirClient::GenerateQuery(
 
 seal::Plaintext SealPirClient::DecodeReply(
     const std::vector<seal::Ciphertext> &reply) {
-  seal::EncryptionParameters parms;
-  seal::parms_id_type parms_id;
-
-  if (pir_params_.enable_mswitching) {
-    parms = context_->last_context_data()->parms();
-    parms_id = context_->last_parms_id();
-  } else {
-    parms = context_->first_context_data()->parms();
-    parms_id = context_->first_parms_id();
-  }
-
-  uint32_t exp_ratio = ComputeExpansionRatio(parms);
   uint32_t recursion_level = pir_params_.d;
 
   std::vector<seal::Ciphertext> temp = reply;
@@ -1261,15 +1288,33 @@ seal::Plaintext SealPirClient::DecodeReply(
   // uint64_t t = enc_params_->plain_modulus().value();
 
   for (uint32_t i = 0; i < recursion_level; i++) {
+    // SPDLOG_INFO("i: {}", i);
+    seal::EncryptionParameters parms;
+    seal::parms_id_type parms_id;
+
+    if (pir_params_.enable_mswitching) {
+      parms = context_[recursion_level - i - 1]->last_context_data()->parms();
+      parms_id = context_[0]->last_parms_id();
+    } else {
+      parms = context_[recursion_level - i - 1]->first_context_data()->parms();
+      parms_id = context_[recursion_level - i - 1]->first_parms_id();
+    }
+
+    uint32_t exp_ratio = ComputeExpansionRatio(parms);
     std::vector<seal::Ciphertext> newtemp;
     std::vector<seal::Plaintext> tempplain;
 
     for (uint32_t j = 0; j < temp.size(); j++) {
       seal::Plaintext ptxt;
-      decryptor_->decrypt(temp[j], ptxt);
+      decryptor_[recursion_level - i - 1]->decrypt(temp[j], ptxt);
+
+      // auto noise =
+      // decryptor_[recursion_level - i - 1]->invariant_noise_budget(temp[j]);
+
+      // SPDLOG_INFO("Client {} dims : reply noise budget = {}", i, noise);
+      // std::cout << "Decryption " << std::endl;
 #ifdef DEC_DEBUG_
       // SPDLOG_INFO("Client: reply noise budget = {}",
-      //             decryptor_->invariant_noise_budget(temp[j]));
       //  SPDLOG_INFO("ptxt to_string: {}", ptxt.to_string());
 #endif
       tempplain.push_back(ptxt);
@@ -1281,7 +1326,7 @@ seal::Plaintext SealPirClient::DecodeReply(
 
       if ((j + 1) % (exp_ratio * ciphertext_size) == 0 && j > 0) {
         // Combine into one ciphertext.
-        seal::Ciphertext combined(*context_, parms_id);
+        seal::Ciphertext combined(*context_[0], parms_id);
         ComposeToCiphertext(parms, tempplain, combined);
         newtemp.push_back(combined);
         tempplain.clear();
@@ -1307,7 +1352,7 @@ seal::Plaintext SealPirClient::DecodeReply(
 std::vector<uint8_t> SealPirClient::ExtractBytes(seal::Plaintext pt,
                                                  uint64_t offset) {
   // uint32_t N = enc_params_ -> poly_modulus_degree();
-  uint32_t logt = floor(log2(enc_params_->plain_modulus().value()));
+  uint32_t logt = floor(log2(enc_params_[0]->plain_modulus().value()));
   uint32_t bytes_per_ptxt =
       pir_params_.elements_per_plaintext * pir_params_.ele_size;
 
@@ -1324,7 +1369,7 @@ std::vector<uint8_t> SealPirClient::ExtractBytes(seal::Plaintext pt,
 
 std::vector<uint32_t> SealPirClient::ExtractBytes(seal::Plaintext pt) {
   // uint32_t N = enc_params_ -> poly_modulus_degree();
-  uint32_t logt = floor(log2(enc_params_->plain_modulus().value()));
+  uint32_t logt = floor(log2(enc_params_[0]->plain_modulus().value()));
   uint32_t bytes_per_ptxt =
       pir_params_.elements_per_plaintext * pir_params_.ele_size;
 
@@ -1342,33 +1387,17 @@ void SealPirClient::ComposeToCiphertext(
     seal::EncryptionParameters params,
     std::vector<seal::Plaintext>::const_iterator pt_iter,
     const size_t ct_poly_count, seal::Ciphertext &ct) {
-  const uint32_t pt_bits_per_coeff = log2(params.plain_modulus().value());
   const auto coeff_count = params.poly_modulus_degree();
   const auto coeff_mod_count = params.coeff_modulus().size();
-
+  YACL_ENFORCE(ct_poly_count == 2);
   ct.resize(ct_poly_count);
   for (size_t poly_index = 0; poly_index < ct_poly_count; ++poly_index) {
     for (size_t coeff_mod_index = 0; coeff_mod_index < coeff_mod_count;
          ++coeff_mod_index) {
-      const double coeff_bit_size =
-          log2(params.coeff_modulus()[coeff_mod_index].value());
-      const size_t local_expansion_ratio =
-          ceil(coeff_bit_size / pt_bits_per_coeff);
-
-      size_t shift = 0;
-      for (size_t i = 0; i < local_expansion_ratio; ++i) {
-        for (size_t c = 0; c < pt_iter->coeff_count(); ++c) {
-          if (shift == 0) {
-            ct.data(poly_index)[coeff_mod_index * coeff_count + c] =
-                (*pt_iter)[c];
-          } else {
-            ct.data(poly_index)[coeff_mod_index * coeff_count + c] +=
-                ((*pt_iter)[c] << shift);
-          }
-        }
-        ++pt_iter;
-        shift += pt_bits_per_coeff;
+      for (size_t c = 0; c < pt_iter->coeff_count(); ++c) {
+        ct.data(poly_index)[coeff_mod_index * coeff_count + c] = (*pt_iter)[c];
       }
+      ++pt_iter;
     }
   }
 }
@@ -1381,16 +1410,17 @@ void SealPirClient::ComposeToCiphertext(seal::EncryptionParameters params,
 }
 
 uint64_t SealPirClient::GetQueryIndex(uint64_t element_idx) {
-  auto N = enc_params_->poly_modulus_degree();
-  auto logt = std::floor(std::log2(enc_params_->plain_modulus().value()));
+  auto N = enc_params_[0]->poly_modulus_degree();
+  auto logt = std::floor(std::log2(enc_params_[0]->plain_modulus().value()));
 
   auto ele_per_ptxt = ElementsPerPtxt(logt, N, options_.element_size);
   return static_cast<uint64_t>(element_idx / ele_per_ptxt);
 }
 
 uint64_t SealPirClient::GetQueryOffset(uint64_t element_idx) {
-  uint32_t N = enc_params_->poly_modulus_degree();
-  uint32_t logt = std::floor(std::log2(enc_params_->plain_modulus().value()));
+  uint32_t N = enc_params_[0]->poly_modulus_degree();
+  uint32_t logt =
+      std::floor(std::log2(enc_params_[0]->plain_modulus().value()));
 
   uint64_t ele_per_ptxt = ElementsPerPtxt(logt, N, options_.element_size);
   return element_idx % ele_per_ptxt;
@@ -1398,39 +1428,43 @@ uint64_t SealPirClient::GetQueryOffset(uint64_t element_idx) {
 
 std::vector<uint32_t> SealPirClient::PlaintextToBytes(
     const seal::Plaintext &plain, uint32_t ele_size) {
-  uint32_t logt = std::floor(std::log2(enc_params_->plain_modulus().value()));
+  uint32_t logt =
+      std::floor(std::log2(enc_params_[0]->plain_modulus().value()));
 
   // Convert from FV plaintext (polynomial) to database element at the client
   std::vector<uint32_t> elements(ele_size);
 
   // std::cout << ele_size << std::endl;
   CoeffsToBytes(logt, plain, elements.data(), ele_size);
-
   return elements;
 }
 
 void SealPirClient::SendPublicKey(
     const std::shared_ptr<yacl::link::Context> &link_ctx) {
-  seal::PublicKey pubkey = GetPublicKey();
+  for (size_t i = 0; i < 2; i++) {
+    seal::PublicKey pubkey = GetPublicKey(i);
 
-  std::string pubkey_str = SerializeSealObject<seal::PublicKey>(pubkey);
-  yacl::Buffer pubkey_buffer(pubkey_str.data(), pubkey_str.length());
+    std::string pubkey_str = SerializeSealObject<seal::PublicKey>(pubkey);
+    yacl::Buffer pubkey_buffer(pubkey_str.data(), pubkey_str.length());
 
-  link_ctx->SendAsync(
-      link_ctx->NextRank(), pubkey_buffer,
-      fmt::format("send public key to rank-{}", link_ctx->Rank()));
+    link_ctx->SendAsync(
+        link_ctx->NextRank(), pubkey_buffer,
+        fmt::format("send public key to rank-{}", link_ctx->Rank()));
+  }
 }
 
 void SealPirClient::SendGaloisKeys(
     const std::shared_ptr<yacl::link::Context> &link_ctx) {
-  seal::GaloisKeys galkey = GenerateGaloisKeys();
+  for (size_t i = 0; i < 2; i++) {
+    seal::GaloisKeys galkey = GenerateGaloisKeys(i);
 
-  std::string galkey_str = SerializeSealObject<seal::GaloisKeys>(galkey);
-  yacl::Buffer galkey_buffer(galkey_str.data(), galkey_str.length());
+    std::string galkey_str = SerializeSealObject<seal::GaloisKeys>(galkey);
+    yacl::Buffer galkey_buffer(galkey_str.data(), galkey_str.length());
 
-  link_ctx->SendAsync(
-      link_ctx->NextRank(), galkey_buffer,
-      fmt::format("send galios key to rank-{}", link_ctx->Rank()));
+    link_ctx->SendAsync(
+        link_ctx->NextRank(), galkey_buffer,
+        fmt::format("send galios key to rank-{}", link_ctx->Rank()));
+  }
 }
 
 std::vector<uint32_t> SealPirClient::DoPirQuery(
@@ -1460,7 +1494,7 @@ std::vector<uint32_t> SealPirClient::DoPirQuery(
       link_ctx->Recv(link_ctx->NextRank(), fmt::format("send query message"));
 
   std::vector<seal::Ciphertext> reply_ciphers =
-      DeSerializeCiphertexts(reply_buffer);
+      DeSerializeAnswers(reply_buffer);
 
   SPDLOG_INFO("Client received reply");
 

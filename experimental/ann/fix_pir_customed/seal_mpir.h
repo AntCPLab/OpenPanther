@@ -115,15 +115,15 @@ class MultiQueryServer : public MultiQuery {
 
   void SetDatabase(yacl::ByteContainerView db_bytes);
 
-  void SetGaloisKeys(const seal::GaloisKeys &galkey) {
+  void SetGaloisKeys(const seal::GaloisKeys &galkey, size_t dim) {
     for (size_t idx = 0; idx < pir_server_.size(); ++idx) {
-      pir_server_[idx]->SetGaloisKeys(galkey);
+      pir_server_[idx]->SetGaloisKeys(galkey, dim);
     }
   }
 
-  void SetPublicKeys(const seal::PublicKey &pubkey) {
+  void SetPublicKeys(const seal::PublicKey &pubkey, size_t dim) {
     for (size_t idx = 0; idx < pir_server_.size(); ++idx) {
-      pir_server_[idx]->SetPublicKey(pubkey);
+      pir_server_[idx]->SetPublicKey(pubkey, dim);
     }
   }
 
@@ -160,10 +160,12 @@ class MultiQueryClient : public MultiQuery {
   std::vector<MultiQueryItem> GenerateBatchQueryIndex(
       const std::vector<size_t> &multi_query_index);
 
-  seal::GaloisKeys GenerateGaloisKeys() {
-    return pir_client_->GenerateGaloisKeys();
+  seal::GaloisKeys GenerateGaloisKeys(size_t index) {
+    return pir_client_->GenerateGaloisKeys(index);
   }
-  seal::PublicKey GetPublicKey() { return pir_client_->GetPublicKey(); }
+  seal::PublicKey GetPublicKey(size_t dim) {
+    return pir_client_->GetPublicKey(dim);
+  }
 
   void SendGaloisKeys(const std::shared_ptr<yacl::link::Context> &link_ctx);
   void SendPublicKey(const std::shared_ptr<yacl::link::Context> &link_ctx);
@@ -175,6 +177,9 @@ class MultiQueryClient : public MultiQuery {
   std::vector<std::vector<uint32_t>> DoMultiPirQuery(
       const std::shared_ptr<yacl::link::Context> &link_ctx,
       const std::vector<size_t> &multi_query_index, bool H2A);
+
+  std::vector<std::vector<seal::Ciphertext>> GenerateMultiQuery(
+      std::vector<MultiQueryItem> &multi_query);
 
  private:
   void GenerateSimpleHashMap();

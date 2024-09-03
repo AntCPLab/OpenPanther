@@ -1,0 +1,86 @@
+[2024-07-08 15:01:34.825] [info] [sanns_demo.cc:227] Total bin number (batch size of argmin): 1252 , Max bin size: 120
+[2024-07-08 15:01:34.825] [info] [sanns_demo.cc:243] Batch query size: 113, Cluster size: , Element size (coeff size): 90608
+[2024-07-08 15:01:39.719] [info] [state.h:150] CHEETAH: Uses yacl_ferret OT
+[2024-07-08 15:01:39.765] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 15:01:40.255] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 15:01:40.756] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 15:01:41.251] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 15:01:41.749] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 15:01:42.241] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 15:01:42.740] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 15:01:43.235] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 15:01:43.739] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 15:01:44.240] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 15:01:44.739] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 15:01:45.228] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 15:01:45.722] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 15:01:46.213] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 15:01:46.722] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 15:01:47.222] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 15:01:47.725] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 15:01:48.221] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 15:01:48.717] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 15:01:49.207] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 15:01:49.744] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 15:01:50.235] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 15:01:50.735] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 15:01:51.226] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 15:01:51.722] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 15:01:52.208] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 15:01:52.700] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 15:01:53.182] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 15:01:53.675] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 15:01:54.183] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 15:01:54.673] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 15:01:55.158] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 15:01:55.648] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 15:01:56.135] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 15:01:56.619] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 15:01:57.102] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 15:01:57.589] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 15:01:58.073] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 15:01:58.559] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 15:01:59.045] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 15:01:59.532] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 15:02:00.014] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 15:02:00.501] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 15:02:00.981] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 15:02:01.469] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 15:02:01.950] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 15:02:02.434] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 15:02:02.917] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-08 15:02:03.362] [info] [sanns_demo.cc:169] DB: element number:90608 element size:2600
+[2024-07-08 15:02:08.233] [info] [thread_pool.cc:30] Create a fixed thread pool with size 71
+[2024-07-08 15:02:08.242] [info] [seal_mpir.cc:43] Element_number:90608
+[2024-07-08 15:02:08.247] [info] [seal_mpir.h:98] N:4096 Max bin size:1640 Element size:2600
+connected
+[2024-07-08 15:02:24.225] [info] [dist_cmp.cc:193] Recv time: 32.121631 ms
+[2024-07-08 15:02:24.342] [info] [dist_cmp.cc:267] Prepoint time: 116.367654
+[2024-07-08 15:02:24.342] [info] [dist_cmp.cc:279] Distance NTT time: 116.921893 ms
+[2024-07-08 15:02:24.369] [info] [dist_cmp.cc:304] H2A Time: 19.736186 ms
+[2024-07-08 15:02:24.383] [info] [dist_cmp.cc:312] Distance Compute Time : 157.830127 ms
+[2024-07-08 15:02:24.384] [info] [sanns_demo.cc:415] Distance cmp time: 397.772853 ms
+[2024-07-08 15:02:24.384] [info] [sanns_demo.cc:416] Distance server sent actions: 23, Distance comm: 1.0173559188842773 MB
+[2024-07-08 15:02:24.545] [info] [sanns_demo.cc:431] Batch number: 1252, element number: 120, Argmax server sent actions: 686, Argmin comm: 1.6672134399414062 MB
+[2024-07-08 15:02:24.545] [info] [sanns_demo.cc:439] Argmin cmp time: 161.834135 ms
+[2024-07-08 15:02:24.742] [info] [sanns_demo.cc:452] Gc_Naive_topk cmp time: 196.521237 ms
+[2024-07-08 15:02:24.742] [info] [sanns_demo.cc:455] Gc_Naive_topk cmp comm: 65.8848066329956 MB
+[2024-07-08 15:02:25.518] [info] [seal_mpir.cc:209] PIR: Recv time: 775.494171 ms
+[2024-07-08 15:02:25.518] [info] [seal_mpir.cc:210] PIR: Query recv comm: 30608.6044921875 KB
+[2024-07-08 15:02:26.744] [info] [seal_mpir.cc:243] PIR: Compute time: 1214.509643 ms
+[2024-07-08 15:02:26.765] [info] [seal_mpir.cc:261] PIR: Transfer to Protobuffer: 20.4702 ms
+[2024-07-08 15:02:26.780] [info] [seal_mpir.cc:274] PIR: Send time: 15.199313 ms
+[2024-07-08 15:02:26.780] [info] [seal_mpir.cc:275] PIR: Query sent comm: 32064.9267578125 KB
+[2024-07-08 15:02:26.780] [info] [seal_mpir.cc:280] PIR: Answer generate: 2037.879671 ms
+[2024-07-08 15:02:26.782] [info] [sanns_demo.cc:462] PIR server response comm: 31.31340503692627 MB
+[2024-07-08 15:02:26.782] [info] [sanns_demo.cc:466] PIR cmp time: 2040.569093 ms
+[2024-07-08 15:02:26.785] [info] [dist_cmp.cc:214] Distance NTT time: 2.638055 ms
+[2024-07-08 15:02:26.789] [info] [dist_cmp.cc:238] H2A Time: 0.944135 ms
+[2024-07-08 15:02:26.790] [info] [dist_cmp.cc:247] Distance Compute Time : 7.442828 ms
+[2024-07-08 15:02:26.790] [info] [sanns_demo.cc:474] Point_distance comm: 0.044239044189453125 MB
+[2024-07-08 15:02:26.790] [info] [sanns_demo.cc:478] Point_distance time: 7.817927 ms
+[2024-07-08 15:02:27.193] [info] [sanns_demo.cc:487] End_topk_3550-10 time: 410.597517 ms
+[2024-07-08 15:02:27.193] [info] [sanns_demo.cc:491] End_topk_3550-10 comm: 60.88581085205078 MB
+[2024-07-08 15:02:27.193] [info] [sanns_demo.cc:498] Total time: 3207.34526 ms
+[2024-07-08 15:02:27.193] [info] [sanns_demo.cc:501] Total comm: 160.82131481170654 MB
+[2024-07-08 15:02:27.598] [warning] [channel.h:163] Channel destructor is called before WaitLinkTaskFinish, try stop send thread

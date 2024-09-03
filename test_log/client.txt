@@ -1,0 +1,28 @@
+[2024-07-04 10:01:28.944] [info] [sanns_demo.cc:227] Total bin number (batch size of argmin): 1252 , Max bin size: 120
+[2024-07-04 10:01:28.944] [info] [sanns_demo.cc:243] Batch query size: 113, Cluster size: , Element size (coeff size): 90608
+[2024-07-04 10:01:47.971] [info] [state.h:150] CHEETAH: Uses yacl_ferret OT
+[2024-07-04 10:01:48.016] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-04 10:01:48.518] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-04 10:01:49.031] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-04 10:01:49.531] [info] [yacl_ote_adapter.cc:202] Doing Ferret-OT Bootstrap now!
+[2024-07-04 10:01:54.582] [info] [thread_pool.cc:30] Create a fixed thread pool with size 71
+connected
+[2024-07-04 10:02:08.799] [info] [dist_cmp.cc:65] Query time: 22.879682 ms
+[2024-07-04 10:02:09.203] [info] [sanns_demo.cc:293] Distance cmp time: 426.982677 ms
+[2024-07-04 10:02:09.203] [info] [sanns_demo.cc:294] Distance client sent actions: 128, Distance comm: 11066.43359375 KB
+[2024-07-04 10:02:09.655] [info] [sanns_demo.cc:310] Argmax cmp time: 451.749389 ms
+[2024-07-04 10:02:09.655] [info] [sanns_demo.cc:314] Argmax client sent actions: 134, Argmax comm: 6034.1015625 KB
+[2024-07-04 10:02:09.855] [info] [sanns_demo.cc:328] Gc topk cmp time: 199.849575 ms
+[2024-07-04 10:02:09.855] [info] [sanns_demo.cc:331] Cluster naive topk comm: 818.12890625 KB
+[2024-07-04 10:02:09.856] [info] [seal_mpir.cc:418] Hash time: 0.480291 ms
+[2024-07-04 10:02:10.528] [info] [seal_mpir.cc:451] Query compute time: 672.999508 ms
+[2024-07-04 10:02:11.873] [info] [seal_mpir.cc:470] Answer size: 177
+[2024-07-04 10:02:12.110] [info] [sanns_demo.cc:345] PIR cmp time: 2255.259228 ms
+[2024-07-04 10:02:12.110] [info] [sanns_demo.cc:346] PIR client query comm: 30610.08203125 KB
+[2024-07-04 10:02:12.111] [info] [sanns_demo.cc:353] Point distance comm: 0 KB
+[2024-07-04 10:02:12.111] [info] [sanns_demo.cc:357] Dis 2 cmp time: 0.461163 ms
+[2024-07-04 10:02:12.904] [info] [sanns_demo.cc:367] End-topk cmp time: 793.951203 ms
+[2024-07-04 10:02:12.904] [info] [sanns_demo.cc:369] End-topk 3550-10 comm: 2456.5390625 KB
+[2024-07-04 10:02:12.904] [info] [sanns_demo.cc:376] Total time: 4127.838024 ms
+[2024-07-04 10:02:12.904] [info] [sanns_demo.cc:380] Total comm: 50.04428958892822 MB
+[2024-07-04 10:02:12.998] [warning] [channel.h:163] Channel destructor is called before WaitLinkTaskFinish, try stop send thread

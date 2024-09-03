@@ -42,6 +42,7 @@ class YaclOTeAdapter {
   virtual void recv_cot(absl::Span<uint128_t> data,
                         absl::Span<const uint8_t> choices) = 0;
   virtual void OneTimeSetup() = 0;
+  virtual void Bootstrap() = 0;
 
   uint128_t Delta{0};
   virtual uint128_t GetDelta() const { return Delta; }
@@ -62,12 +63,15 @@ class YaclFerretOTeAdapter : public YaclOTeAdapter {
   }
 
   ~YaclFerretOTeAdapter() {
-    SPDLOG_DEBUG(
-        "[FerretAdapter {}]({}), comsume OT {}, total time {:.3e} ms, "
+    SPDLOG_INFO(
+        "[FerretAdapter {}]({}), comsume OT {}, total time {:.2e} ms, "
         "invoke bootstrap {} ( {:.2e} ms per bootstrap, {:.2e} ms per ot )",
         id_, (is_sender_ ? fmt::format("Sender") : fmt::format("Receiver")),
         consumed_ot_num_, bootstrap_time_, bootstrap_num_,
         bootstrap_time_ / bootstrap_num_, bootstrap_time_ / consumed_ot_num_);
+    // SPDLOG_INFO("[FerretAdapter {}]({}),Bootstrap time: {} ms", id_,
+    // (is_sender_ ? fmt::format("Sender") : fmt::format("Receiver")),
+    // bootstrap_time_);
   }
 
   void OneTimeSetup() override;
@@ -101,6 +105,8 @@ class YaclFerretOTeAdapter : public YaclOTeAdapter {
 
   double GetTime() const { return bootstrap_time_; }
 
+  void Bootstrap() override;
+
  private:
   std::shared_ptr<yl::Context> ctx_{nullptr};
 
@@ -131,7 +137,7 @@ class YaclFerretOTeAdapter : public YaclOTeAdapter {
   yacl::Buffer ot_buff_;  // ot buffer
 
   // Yacl Ferret OTe
-  void Bootstrap();
+  // void Bootstrap();
   // Yacl Ferret OTe
   void BootstrapInplace(absl::Span<uint128_t> ot, absl::Span<uint128_t> data);
 
@@ -191,6 +197,8 @@ class YaclIknpOTeAdapter : public YaclOTeAdapter {
   uint128_t GetConsumed() const { return consumed_ot_num_; }
 
   double GetTime() const { return ote_time_; }
+
+  void Bootstrap() override{};
 
  private:
   std::shared_ptr<yl::Context> ctx_{nullptr};
@@ -273,6 +281,8 @@ class YaclSsOTeAdapter : public YaclOTeAdapter {
   uint128_t GetConsumed() const { return consumed_ot_num_; }
 
   double GetTime() const { return ote_time_; }
+
+  void Bootstrap() override{};
 
  private:
   std::shared_ptr<yl::Context> ctx_{nullptr};

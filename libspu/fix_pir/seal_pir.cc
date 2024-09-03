@@ -413,9 +413,7 @@ SealPirServer::SealPirServer(const SealPirOptions &options,
                              std::shared_ptr<IDbPlaintextStore> plaintext_store)
     : SealPir(options),
       plaintext_store_(std::move(plaintext_store)),
-      is_db_preprocessed_(false) {
-  yacl::set_num_threads(1);
-}
+      is_db_preprocessed_(false) {}
 #endif
 
 // set database

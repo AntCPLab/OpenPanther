@@ -153,6 +153,12 @@
         "typeinfo": "cpp",
         "__locale": "cpp",
         "__node_handle": "cpp",
-        "__verbose_abort": "cpp"
+        "__verbose_abort": "cpp",
+        "nnls": "cpp",
+        "locale": "cpp",
+        "mock_vector": "cpp",
+        "util": "cpp",
+        "print": "cpp",
+        "*.ipp": "cpp"
     }
 }

@@ -22,7 +22,7 @@
 
 #include "spdlog/spdlog.h"
 
-#include "experimental/ann/fix_pir/serializable.pb.h"
+#include "experimental/ann/fix_pir_customed/serializable.pb.h"
 
 namespace spu::seal_pir {
 
@@ -90,28 +90,33 @@ void MultiQueryServer::SetDatabase(yacl::ByteContainerView db_bytes) {
 
 void MultiQueryServer::RecvPublicKey(
     const std::shared_ptr<yacl::link::Context> &link_ctx) {
-  yacl::Buffer pubkey_buffer = link_ctx->Recv(
-      link_ctx->NextRank(),
-      fmt::format("recv public key from rank-{}", link_ctx->Rank()));
+  for (size_t i = 0; i < 2; i++) {
+    yacl::Buffer pubkey_buffer = link_ctx->Recv(
+        link_ctx->NextRank(),
+        fmt::format("recv public key from rank-{}", link_ctx->Rank()));
 
-  std::string pubkey_str(pubkey_buffer.size(), '\0');
-  std::memcpy(pubkey_str.data(), pubkey_buffer.data(), pubkey_buffer.size());
-  auto pubkey =
-      pir_server_[0]->DeSerializeSealObject<seal::PublicKey>(pubkey_str);
-  SetPublicKeys(pubkey);
+    std::string pubkey_str(pubkey_buffer.size(), '\0');
+    std::memcpy(pubkey_str.data(), pubkey_buffer.data(), pubkey_buffer.size());
+    auto pubkey =
+        pir_server_[0]->DeSerializeSealObject<seal::PublicKey>(pubkey_str, i);
+    SetPublicKeys(pubkey, i);
+  }
 }
 
 void MultiQueryServer::RecvGaloisKeys(
     const std::shared_ptr<yacl::link::Context> &link_ctx) {
-  yacl::Buffer galkey_buffer = link_ctx->Recv(
-      link_ctx->NextRank(),
-      fmt::format("recv galios key from rank-{}", link_ctx->Rank()));
+  for (size_t i = 0; i < 2; i++) {
+    yacl::Buffer galkey_buffer = link_ctx->Recv(
+        link_ctx->NextRank(),
+        fmt::format("recv galios key from rank-{}", link_ctx->Rank()));
 
-  std::string galkey_str(galkey_buffer.size(), '\0');
-  std::memcpy(galkey_str.data(), galkey_buffer.data(), galkey_buffer.size());
-  auto galkey =
-      pir_server_[0]->DeSerializeSealObject<seal::GaloisKeys>(galkey_str);
-  SetGaloisKeys(galkey);
+    std::string galkey_str(galkey_buffer.size(), '\0');
+    std::memcpy(galkey_str.data(), galkey_buffer.data(), galkey_buffer.size());
+    auto galkey =
+        pir_server_[0]->DeSerializeSealObject<seal::GaloisKeys>(galkey_str, i);
+
+    SetGaloisKeys(galkey, i);
+  }
 }
 
 void MultiQueryServer::DoMultiPirAnswer(
@@ -216,9 +221,9 @@ std::vector<std::vector<uint32_t>> MultiQueryServer::DoMultiPirAnswer(
   YACL_ENFORCE((uint64_t)multi_query_proto.querys().size() ==
                cuckoo_params_.NumBins());
 
-  std::vector<std::vector<uint32_t>> random_mask(
+  std::vector<std::vector<uint64_t>> random_mask(
       cuckoo_params_.NumBins(),
-      std::vector<uint32_t>(query_options_.seal_options.element_size, 0));
+      std::vector<uint64_t>(query_options_.seal_options.element_size, 0));
 
   std::vector<yacl::Buffer> reply_cipher_buffers(
       multi_query_proto.querys().size());
@@ -278,7 +283,17 @@ std::vector<std::vector<uint32_t>> MultiQueryServer::DoMultiPirAnswer(
   const DurationMillis time = answer_time_end - answer_time;
 
   SPDLOG_INFO("PIR: Answer generate: {} ms", time.count());
-  return random_mask;
+  std::vector<std::vector<uint32_t>> random(
+      cuckoo_params_.NumBins(),
+      std::vector<uint32_t>(query_options_.seal_options.element_size, 0));
+  yacl::parallel_for(
+      0, cuckoo_params_.NumBins(), [&](int64_t begin, int64_t end) {
+        for (int64_t i = begin; i < end; i++) {
+          for (size_t j = 0; j < query_options_.seal_options.element_size; j++)
+            random[i][j] = random_mask[i][j];
+        }
+      });
+  return random;
 }
 
 void MultiQueryClient::GenerateSimpleHashMap() {
@@ -378,77 +393,68 @@ std::vector<MultiQueryItem> MultiQueryClient::GenerateBatchQueryIndex(
 
 void MultiQueryClient::SendPublicKey(
     const std::shared_ptr<yacl::link::Context> &link_ctx) {
-  seal::PublicKey pubkey = pir_client_->GetPublicKey();
-
-  std::string pubkey_str =
-      pir_client_->SerializeSealObject<seal::PublicKey>(pubkey);
-  yacl::Buffer pubkey_buffer(pubkey_str.data(), pubkey_str.length());
-
-  link_ctx->SendAsync(
-      link_ctx->NextRank(), pubkey_buffer,
-      fmt::format("send public key to rank-{}", link_ctx->Rank()));
+  pir_client_->SendPublicKey(link_ctx);
 }
 
 void MultiQueryClient::SendGaloisKeys(
     const std::shared_ptr<yacl::link::Context> &link_ctx) {
-  seal::GaloisKeys galkey = pir_client_->GenerateGaloisKeys();
-
-  std::string galkey_str =
-      pir_client_->SerializeSealObject<seal::GaloisKeys>(galkey);
-  yacl::Buffer galkey_buffer(galkey_str.data(), galkey_str.length());
-
-  link_ctx->SendAsync(
-      link_ctx->NextRank(), galkey_buffer,
-      fmt::format("send galios key to rank-{}", link_ctx->Rank()));
+  pir_client_->SendGaloisKeys(link_ctx);
 }
 
 std::vector<std::vector<uint32_t>> MultiQueryClient::DoMultiPirQuery(
     const std::shared_ptr<yacl::link::Context> &link_ctx,
     const std::vector<size_t> &multi_query_index, bool H2A) {
+  const auto hash_s = std::chrono::system_clock::now();
   YACL_ENFORCE(H2A == true);
-  const auto query_s = std::chrono::system_clock::now();
   std::vector<MultiQueryItem> multi_query =
       GenerateBatchQueryIndex(multi_query_index);
 
   test_query = multi_query;
 
-  const auto query_stop = std::chrono::system_clock::now();
-  const DurationMillis batch_time = query_stop - query_s;
+  const auto hash_e = std::chrono::system_clock::now();
+  const DurationMillis batch_time = hash_e - hash_s;
 
   SPDLOG_INFO("Hash time: {} ms", batch_time.count());
 
-  SealMultiPirQueryProto multi_query_proto;
+  SPDLOG_INFO("Query size: {}", multi_query.size());
 
+  const auto query_s = std::chrono::system_clock::now();
+
+  SealMultiPirQueryProto multi_query_proto;
   std::vector<SealPirQueryProto *> query_proto_vec(multi_query.size());
   for (size_t idx = 0; idx < multi_query.size(); ++idx) {
     query_proto_vec[idx] = multi_query_proto.add_querys();
   }
+  // std::vector<std::vector<seal::Ciphertext>> query_ciphers =
+  // GenerateMultiQuery(multi_query);
 
-  for (size_t idx = 0; idx < multi_query.size(); ++idx) {
-    std::vector<std::vector<seal::Ciphertext>> query_ciphers =
-        pir_client_->GenerateQuery(multi_query[idx].bin_item_index);
+  yacl::parallel_for(0, multi_query.size(), [&](int64_t begin, int64_t end) {
+    for (int64_t idx = begin; idx < end; ++idx) {
+      std::vector<std::vector<seal::Ciphertext>> query_ciphers =
+          pir_client_->GenerateQuery(multi_query[idx].bin_item_index);
+      query_proto_vec[idx]->set_query_size(0);
+      query_proto_vec[idx]->set_start_pos(0);
+      for (auto &query_cipher : query_ciphers) {
+        ::spu::seal_pir::CiphertextsProto *ciphers_proto =
+            query_proto_vec[idx]->add_query_cipher();
 
-    query_proto_vec[idx]->set_query_size(0);
-    query_proto_vec[idx]->set_start_pos(0);
-    for (auto &query_cipher : query_ciphers) {
-      ::spu::seal_pir::CiphertextsProto *ciphers_proto =
-          query_proto_vec[idx]->add_query_cipher();
+        for (size_t k = 0; k < query_cipher.size(); ++k) {
+          std::string cipher_bytes =
+              pir_client_->SerializeSealObject<seal::Ciphertext>(
+                  query_cipher[k]);
 
-      for (size_t k = 0; k < query_cipher.size(); ++k) {
-        std::string cipher_bytes =
-            pir_client_->SerializeSealObject<seal::Ciphertext>(query_cipher[k]);
-
-        ciphers_proto->add_ciphers(cipher_bytes.data(), cipher_bytes.length());
+          ciphers_proto->add_ciphers(cipher_bytes.data(),
+                                     cipher_bytes.length());
+        }
       }
     }
-  }
-
-  auto s = multi_query_proto.SerializeAsString();
-  yacl::Buffer multi_query_buffer(s.data(), s.size());
-
+  });
   const auto query_e = std::chrono::system_clock::now();
   const DurationMillis query_time = query_e - query_s;
   SPDLOG_INFO("Query compute time: {} ms", query_time.count());
+
+  auto s = multi_query_proto.SerializeAsString();
+  yacl::Buffer multi_query_buffer(s.data(), s.size());
 
   link_ctx->SendAsync(
       link_ctx->NextRank(), multi_query_buffer,
@@ -456,11 +462,8 @@ std::vector<std::vector<uint32_t>> MultiQueryClient::DoMultiPirQuery(
 
   yacl::Buffer reply_buffer =
       link_ctx->Recv(link_ctx->NextRank(), fmt::format("recv pir answer"));
-
   SealMultiPirAnswerProto multi_answer_proto;
   multi_answer_proto.ParseFromArray(reply_buffer.data(), reply_buffer.size());
-  // SPDLOG_INFO("multi_answer_proto size:{}",
-  // multi_answer_proto.answers_size());
 
   YACL_ENFORCE((uint64_t)multi_answer_proto.answers_size() ==
                multi_query.size());
@@ -472,7 +475,7 @@ std::vector<std::vector<uint32_t>> MultiQueryClient::DoMultiPirQuery(
   for (int idx = 0; idx < multi_answer_proto.answers_size(); ++idx) {
     CiphertextsProto answer_proto = multi_answer_proto.answers(idx).answer();
     std::vector<seal::Ciphertext> reply_ciphers =
-        pir_client_->DeSerializeCiphertexts(answer_proto);
+        pir_client_->DeSerializeAnswers(answer_proto);
 
     seal::Plaintext query_plain = pir_client_->DecodeReply(reply_ciphers);
 
@@ -488,6 +491,73 @@ std::vector<std::vector<uint32_t>> MultiQueryClient::DoMultiPirQuery(
   }
 
   return answers;
+}
+
+std::vector<std::vector<seal::Ciphertext>> MultiQueryClient::GenerateMultiQuery(
+    std::vector<MultiQueryItem> &multi_query) {
+  std::vector<std::vector<seal::Ciphertext>> query(
+      multi_query.size(), std::vector<seal::Ciphertext>(2));
+  for (size_t i = 0; i < multi_query.size(); i++) {
+    for (size_t j = 0; j < query[i].size(); j++) {
+      query[i][j].reserve(4096 * 3 * 2);
+    }
+  }
+  for (size_t i = 0; i < multi_query.size(); i++) {
+    // auto index = multi_query[i].bin_item_index;
+
+    // indices_ = ComputeIndices(index, pir_params_.nvec);
+
+    // // ComputeInverseScales();
+    // YACL_ENFORCE(indices_.size() == 2);
+    // // std::vector<std::vector<seal::Ciphertext>> result(pir_params_.d);
+    // int N = 4096;
+
+    // seal::Plaintext pt(N);
+    // for (uint32_t i = 0; i < indices_.size(); i++) {
+    //   uint32_t num_ptxts = ceil((pir_params_.nvec[i] + 0.0) / N);
+    //   YACL_ENFORCE(num_ptxts == 1);
+    //   uint64_t log_total;
+    //   pt.set_zero();
+
+    //   uint64_t real_index = indices_[i];
+    //   int64_t n_i = pir_params_.nvec[i];
+    //   uint64_t total = N;
+    //   total = n_i % N;
+    //   log_total = ceil(log2(total));
+    //   pt[real_index] = 1;
+    //   seal::Ciphertext dest;
+    //   if (pir_params_.enable_symmetric) {
+    //     encryptor_[i]->encrypt_symmetric(pt, dest);
+    //   } else {
+    //     encryptor_[i]->encrypt(pt, dest);
+    //   }
+
+    //   const auto &modulus = context_[i]
+    //                             ->get_context_data(dest.parms_id())
+    //                             ->parms()
+    //                             .coeff_modulus();
+    //   size_t num_modulus = dest.coeff_modulus_size();
+    //   size_t num_coeff = dest.poly_modulus_degree();
+
+    //   // std::cout << dest.size() << std::endl;
+    //   for (size_t k = 0; k < dest.size(); k++) {
+    //     uint64_t *dst_ptr = dest.data(k);
+    //     for (size_t l = 0; l < num_modulus; ++l) {
+    //       uint64_t inv_;
+    //       seal::util::MultiplyUIntModOperand a;
+    //       seal::util::try_invert_uint_mod(pow(2, log_total), modulus.at(l),
+    //                                       inv_);
+    //       a.set(inv_, modulus[l]);
+    //       seal::util::multiply_poly_scalar_coeffmod(dst_ptr, num_coeff, a,
+    //                                                 modulus.at(l), dst_ptr);
+    //       dst_ptr += num_coeff;
+    //     }
+    //   }
+
+    //   query[i].push_back(dest);
+    // }
+  }
+  return query;
 }
 
 std::vector<std::vector<uint32_t>> MultiQueryClient::DoMultiPirQuery(
@@ -508,25 +578,28 @@ std::vector<std::vector<uint32_t>> MultiQueryClient::DoMultiPirQuery(
   for (size_t idx = 0; idx < multi_query.size(); ++idx) {
     query_proto_vec[idx] = multi_query_proto.add_querys();
   }
+  yacl::parallel_for(0, multi_query.size(), [&](int64_t begin, int64_t end) {
+    for (int64_t idx = begin; idx < end; ++idx) {
+      std::vector<std::vector<seal::Ciphertext>> query_ciphers =
+          pir_client_->GenerateQuery(multi_query[idx].bin_item_index);
 
-  for (size_t idx = 0; idx < multi_query.size(); ++idx) {
-    std::vector<std::vector<seal::Ciphertext>> query_ciphers =
-        pir_client_->GenerateQuery(multi_query[idx].bin_item_index);
+      query_proto_vec[idx]->set_query_size(0);
+      query_proto_vec[idx]->set_start_pos(0);
+      for (auto &query_cipher : query_ciphers) {
+        ::spu::seal_pir::CiphertextsProto *ciphers_proto =
+            query_proto_vec[idx]->add_query_cipher();
 
-    query_proto_vec[idx]->set_query_size(0);
-    query_proto_vec[idx]->set_start_pos(0);
-    for (auto &query_cipher : query_ciphers) {
-      ::spu::seal_pir::CiphertextsProto *ciphers_proto =
-          query_proto_vec[idx]->add_query_cipher();
+        for (size_t k = 0; k < query_cipher.size(); ++k) {
+          std::string cipher_bytes =
+              pir_client_->SerializeSealObject<seal::Ciphertext>(
+                  query_cipher[k]);
 
-      for (size_t k = 0; k < query_cipher.size(); ++k) {
-        std::string cipher_bytes =
-            pir_client_->SerializeSealObject<seal::Ciphertext>(query_cipher[k]);
-
-        ciphers_proto->add_ciphers(cipher_bytes.data(), cipher_bytes.length());
+          ciphers_proto->add_ciphers(cipher_bytes.data(),
+                                     cipher_bytes.length());
+        }
       }
     }
-  }
+  });
 
   auto s = multi_query_proto.SerializeAsString();
   yacl::Buffer multi_query_buffer(s.data(), s.size());
@@ -549,33 +622,6 @@ std::vector<std::vector<uint32_t>> MultiQueryClient::DoMultiPirQuery(
 
   SealMultiPirAnswerProto multi_answer_proto;
   multi_answer_proto.ParseFromArray(reply_buffer.data(), reply_buffer.size());
-  // SPDLOG_INFO("multi_answer_proto size:{}",
-  // multi_answer_proto.answers_size());
-
-  // YACL_ENFORCE((uint64_t)multi_answer_proto.answers_size() ==
-  //              multi_query.size());
-
-  // std::vector<std::vector<uint32_t>>
-  // answers(multi_answer_proto.answers_size()); size_t answer_count = 0;
-  // SPDLOG_INFO("Answer size: {}", multi_answer_proto.answers_size());
-
-  // for (int idx = 0; idx < multi_answer_proto.answers_size(); ++idx) {
-  //   CiphertextsProto answer_proto = multi_answer_proto.answers(idx).answer();
-  //   std::vector<seal::Ciphertext> reply_ciphers =
-  //       pir_client_->DeSerializeCiphertexts(answer_proto);
-
-  //   seal::Plaintext query_plain = pir_client_->DecodeReply(reply_ciphers);
-
-  //   std::vector<uint32_t> plaintext_bytes = pir_client_->PlaintextToBytes(
-  //       query_plain, query_options_.seal_options.element_size);
-
-  //   answers[idx].resize(query_options_.seal_options.element_size);
-
-  //   answer_count++;
-
-  //   std::memcpy(answers[idx].data(), plaintext_bytes.data(),
-  //               query_options_.seal_options.element_size * 4);
-  // }
 
   std::vector<std::vector<uint32_t>> answers(multi_query_index.size());
   size_t answer_count = 0;
@@ -590,7 +636,7 @@ std::vector<std::vector<uint32_t>> MultiQueryClient::DoMultiPirQuery(
       }
       CiphertextsProto answer_proto = multi_answer_proto.answers(idx).answer();
       std::vector<seal::Ciphertext> reply_ciphers =
-          pir_client_->DeSerializeCiphertexts(answer_proto);
+          pir_client_->DeSerializeAnswers(answer_proto);
 
       seal::Plaintext query_plain = pir_client_->DecodeReply(reply_ciphers);
 
