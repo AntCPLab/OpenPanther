@@ -93,8 +93,8 @@ spu_cc_library(
 )
 
 spu_cc_binary(
-    name = "sanns_demo",
-    srcs = ["sanns_demo.cc"],
+    name = "panther_demo",
+    srcs = ["panther_demo.cc"],
     data = ["dataset/dataset.txt", 
     "dataset/test.txt",
     "dataset/centrios.txt",
@@ -139,65 +139,7 @@ spu_cc_binary(
         "@com_github_openssl_openssl//:openssl",
     ],
 )
-spu_cc_binary(
-    name = "sanns_demo_deep",
-    srcs = ["sanns_demo_deep.cc"],
-    copts = AES_COPT_FLAGS,
-    deps = [
-        ":dist_cmp",
-        ":batch_argmax_prot",
-        ":bitwidth_change",
-        "//libspu/device:io",
-        "@com_google_absl//absl/strings",
-        "@llvm-project//llvm:Support",
-        "@yacl//yacl/link:factory",
-        "//libspu/mpc/cheetah:state",
-        "//experimental/ann/fix_pir_customed:seal_mpir",
-        "//libspu/psi/cryptor:sodium_curve25519_cryptor",
-        ":topk",
-        "@com_github_openssl_openssl//:openssl",
-    ],
-)
 
-spu_cc_binary(
-    name = "sanns_demo_amazon",
-    srcs = ["sanns_demo_amazon.cc"],
-    copts = AES_COPT_FLAGS,
-    deps = [
-        ":dist_cmp",
-        ":batch_argmax_prot",
-        ":bitwidth_change",
-        "//libspu/device:io",
-        "@com_google_absl//absl/strings",
-        "@llvm-project//llvm:Support",
-        "@yacl//yacl/link:factory",
-        "//libspu/mpc/cheetah:state",
-        "//experimental/ann/fix_pir_customed:seal_mpir",
-        "//libspu/psi/cryptor:sodium_curve25519_cryptor",
-        ":topk",
-        "@com_github_openssl_openssl//:openssl",
-    ],
-)
-
-spu_cc_binary(
-    name = "sanns_demo_deep1m",
-    srcs = ["sanns_demo_deep1m.cc"],
-    copts = AES_COPT_FLAGS,
-    deps = [
-        ":dist_cmp",
-        ":batch_argmax_prot",
-        ":bitwidth_change",
-        "//libspu/device:io",
-        "@com_google_absl//absl/strings",
-        "@llvm-project//llvm:Support",
-        "@yacl//yacl/link:factory",
-        "//libspu/mpc/cheetah:state",
-        "//experimental/ann/fix_pir_customed_test:seal_mpir",
-        "//libspu/psi/cryptor:sodium_curve25519_cryptor",
-        ":topk",
-        "@com_github_openssl_openssl//:openssl",
-    ],
-)
 
 spu_cc_binary(
     name = "topk_benchmark",
@@ -229,8 +171,8 @@ spu_cc_binary(
 )
 
 spu_cc_binary(
-    name = "sanns_plain",
-    srcs = ["sanns_plain.cc"],
+    name = "panther_plain",
+    srcs = ["panther_plain.cc"],
     data = [    
     "dataset/dataset.txt",
     "dataset/test.txt",
@@ -238,22 +180,6 @@ spu_cc_binary(
     "dataset/ptoc.txt",
     "dataset/neighbors.txt",
     "dataset/stash.txt"],
-    copts = AES_COPT_FLAGS,
-    deps = [
-        ":dist_cmp",
-        
-    ]
-)
-
-spu_cc_binary(
-    name = "sanns_plain_deep",
-    srcs = ["sanns_plain_deep.cc"],
-    data = ["train_deep.txt", 
-    "test_deep.txt",
-    "centrios_deep.txt",
-    "ptoc_deep.txt",
-    "neighbors_deep.txt",
-    "stash_deep.txt"],
     copts = AES_COPT_FLAGS,
     deps = [
         ":dist_cmp",
