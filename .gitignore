@@ -1,4 +1,7 @@
 # devtools
+.circleci/
+.github/
+.vscode/
 .idea/
 *.plist
 clion/
