@@ -1,72 +1,51 @@
-# SPU: Secure Processing Unit
+# PANTHER: Private Approximate Nearest Neighbor Search in the Single Server Setting
 
-[![CircleCI](https://dl.circleci.com/status-badge/img/gh/secretflow/spu/tree/main.svg?style=shield)](https://dl.circleci.com/status-badge/redirect/gh/secretflow/spu/tree/main)
-[![Python](https://img.shields.io/pypi/pyversions/spu.svg)](https://pypi.org/project/spu/)
-[![PyPI version](https://img.shields.io/pypi/v/spu)](https://pypi.org/project/spu/)
-[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/secretflow/spu/badge)](https://securityscorecards.dev/viewer/?uri=github.com/secretflow/spu)
-[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/8311/badge)](https://www.bestpractices.dev/projects/8311)
+This repo is the implement of Panther. The implementation source code is in `experimental/ann`. The codes are still under heavy developments, and should not be used in any security sensitive product.
 
-SPU (Secure Processing Unit) aims to be a `provable`, `measurable` secure computation device,
-which provides computation ability while keeping your private data protected.
+## Building Dependencies
+Please refer to the spu and emp-tool documents. Our implentation based on this two library. Their are more details about the dependencies in their repositories. 
+We only need to build the backend of SPU. It can reduce the dependencies of the implentation. 
 
-SPU could be treated as a programmable device, it's not designed to be used directly.
-Normally we use SecretFlow framework, which use SPU as the underline secure computing device.
 
-Currently, we mainly focus on `provable` security. It contains a secure runtime that evaluates
-[XLA](https://www.tensorflow.org/xla/operation_semantics)-like tensor operations,
-which use [MPC](https://en.wikipedia.org/wiki/Secure_multi-party_computation) as the underline
-evaluation engine to protect privacy information.
+## End-to-end test
+We provide a random input version for end-to-end evaluation, which only used in performance analysis, it can let the user quickly reproduce the result without downloading the entire database.  We are finding a better way to provide the database to make it easy to use. 
 
-SPU python package also contains a simple distributed module to demo SPU usage,
-but it's **NOT designed for production** due to system security and performance concerns,
-please **DO NOT** use it directly in production.
 
-## Contribution Guidelines
+### Build
 
-If you would like to contribute to SPU, please check [Contribution guidelines](CONTRIBUTING.md).
-
-This documentation also contains instructions for [build and testing](CONTRIBUTING.md#build).
-
-## Installation Guidelines
-
-### Supported platforms
-
-|            | Linux x86_64 | Linux aarch64 | macOS x64      | macOS Apple Silicon | Windows x64    | Windows WSL2    x64 |
-|------------|--------------|---------------|----------------|---------------------|----------------|---------------------|
-| CPU        | yes          | yes           | yes<sup>1</sup>| yes                 | no             | yes                 |
-| NVIDIA GPU | experimental | no            | no             | n/a                 | no             | experimental        |
-
-1. Due to CI resource limitation, macOS x64 prebuild binary is no longer available.
-
-### Instructions
-
-Please follow [Installation Guidelines](INSTALLATION.md) to install SPU.
-
-### Hardware Requirements
-
-| General Features | FourQ based PSI | GPU |
-| ---------------- | --------------- | --- |
-| AVX/ARMv8        | AVX2/ARMv8      | CUDA 11.8+ |
-
-## Citing SPU
-
-If you think SPU is helpful for your research or development, please consider citing our [paper](https://www.usenix.org/conference/atc23/presentation/ma):
-
-```text
-@inproceedings {spu,
-    author = {Junming Ma and Yancheng Zheng and Jun Feng and Derun Zhao and Haoqi Wu and Wenjing Fang and Jin Tan and Chaofan Yu and Benyu Zhang and Lei Wang},
-    title = {{SecretFlow-SPU}: A Performant and {User-Friendly} Framework for {Privacy-Preserving} Machine Learning},
-    booktitle = {2023 USENIX Annual Technical Conference (USENIX ATC 23)},
-    year = {2023},
-    isbn = {978-1-939133-35-9},
-    address = {Boston, MA},
-    pages = {17--33},
-    url = {https://www.usenix.org/conference/atc23/presentation/ma},
-    publisher = {USENIX Association},
-    month = jul,
-}
+(The initial compilation may take a long time.)
+```
+bazel build //experimental/ann:panther_demo
+```
+### Execute 
+```
+bazel run  //experimental/ann:panther_demo & 
+bazel run  //experimental/ann:panther_demo -- --rank=1 
 ```
 
-## Acknowledgement
+## Benchmark test
+We provid adequate unit test in our repo.
+```
+# Distance Compute
+bazel run //experimental/ann:dist_cmp_test
+```
 
-We thank the significant contributions made by [Alibaba Gemini Lab](https://alibaba-gemini-lab.github.io).
+
+```
+# Customed Batch PIR
+bazel run //experimenta/ann/fix_pir_customed:seal_mpir_test
+```
+
+```
+# SS-based Min
+bazel run //experimental/ann:batch_argmax_test
+
+# Trunc and Extend
+bazel run //experimental/ann:bitwidth_change_test
+``` 
+```
+# GC-based top-k
+# follow emp-toolkit style
+bazel run //experimental/ann:test_topk 1 1111 &
+bazel run //experimental/ann:test_topk 2 1111
+```

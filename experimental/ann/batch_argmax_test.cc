@@ -69,29 +69,27 @@ TEST_P(BatchArgmaxTest, localtruncate) {
         auto *ctx = _ctx.get();
         spu::mpc::Factory::RegisterProtocol(ctx, lctx);
         auto kctx = std::make_shared<spu::KernelEvalContext>(_ctx.get());
-        for (int i = 0; i < 2; i++) {
-          [[maybe_unused]] auto b0 = lctx->GetStats()->sent_bytes.load();
-          [[maybe_unused]] auto s0 = lctx->GetStats()->sent_actions.load();
-          auto start = std::chrono::high_resolution_clock::now();
-          BatchArgmaxProtocol batch_argmax(kctx, 5);
-          auto _c = batch_argmax.ComputeWithIndex(
-              inp[rank], index[rank], bw, shift, batch_size, argmax_size);
+        [[maybe_unused]] auto b0 = lctx->GetStats()->sent_bytes.load();
+        [[maybe_unused]] auto s0 = lctx->GetStats()->sent_actions.load();
+        auto start = std::chrono::high_resolution_clock::now();
+        BatchArgmaxProtocol batch_argmax(kctx, 5);
+        auto _c = batch_argmax.ComputeWithIndex(inp[rank], index[rank], bw,
+                                                shift, batch_size, argmax_size);
 
-          // auto _c =
-          // batch_argmax.Compute(inp[rank], bw, batch_size, argmax_size);
-          auto end = std::chrono::high_resolution_clock::now();
-          SPDLOG_INFO("Time {} ms",
-                      (std::chrono::duration_cast<std::chrono::microseconds>(
-                           end - start)
-                           .count() /
-                       1000));
-          [[maybe_unused]] auto b1 = lctx->GetStats()->sent_bytes.load();
-          [[maybe_unused]] auto s1 = lctx->GetStats()->sent_actions.load();
-          cmp_oup[rank] = _c[0];
-          cmp_idx[rank] = _c[1];
-          SPDLOG_INFO("Send actions: {}", (s1 - s0));
-          SPDLOG_INFO("Send bytes: {} KB", (b1 - b0) / 1024.0);
-        }
+        // auto _c =
+        // batch_argmax.Compute(inp[rank], bw, batch_size, argmax_size);
+        auto end = std::chrono::high_resolution_clock::now();
+        SPDLOG_INFO(
+            "Time {} ms",
+            (std::chrono::duration_cast<std::chrono::microseconds>(end - start)
+                 .count() /
+             1000));
+        [[maybe_unused]] auto b1 = lctx->GetStats()->sent_bytes.load();
+        [[maybe_unused]] auto s1 = lctx->GetStats()->sent_actions.load();
+        cmp_oup[rank] = _c[0];
+        cmp_idx[rank] = _c[1];
+        SPDLOG_INFO("Send actions: {}", (s1 - s0));
+        SPDLOG_INFO("Send bytes: {} KB", (b1 - b0) / 1024.0);
       });
   DISPATCH_ALL_FIELDS(field, "", [&]() {
     SPU_ENFORCE_EQ(cmp_oup[0].numel(), batch_size);

@@ -63,12 +63,12 @@ class YaclFerretOTeAdapter : public YaclOTeAdapter {
   }
 
   ~YaclFerretOTeAdapter() {
-    SPDLOG_INFO(
-        "[FerretAdapter {}]({}), comsume OT {}, total time {:.2e} ms, "
-        "invoke bootstrap {} ( {:.2e} ms per bootstrap, {:.2e} ms per ot )",
-        id_, (is_sender_ ? fmt::format("Sender") : fmt::format("Receiver")),
-        consumed_ot_num_, bootstrap_time_, bootstrap_num_,
-        bootstrap_time_ / bootstrap_num_, bootstrap_time_ / consumed_ot_num_);
+    // SPDLOG_INFO(
+    // "[FerretAdapter {}]({}), comsume OT {}, total time {:.2e} ms, "
+    // "invoke bootstrap {} ( {:.2e} ms per bootstrap, {:.2e} ms per ot )",
+    // id_, (is_sender_ ? fmt::format("Sender") : fmt::format("Receiver")),
+    // consumed_ot_num_, bootstrap_time_, bootstrap_num_,
+    // bootstrap_time_ / bootstrap_num_, bootstrap_time_ / consumed_ot_num_);
     // SPDLOG_INFO("[FerretAdapter {}]({}),Bootstrap time: {} ms", id_,
     // (is_sender_ ? fmt::format("Sender") : fmt::format("Receiver")),
     // bootstrap_time_);

@@ -11,11 +11,7 @@ const std::vector<int64_t> k_c = {50810, 25603, 9968, 3227, 29326};
 const std::vector<int64_t> group_bin_number = {458, 270, 178, 84, 262};
 const std::vector<int64_t> group_k_number = {50, 31, 19, 13, 10};
 
-// const std::vector<uint32_t> k_c = {88821, 12122};
-// const std::vector<int64_t> group_bin_number = {1000, 262};
-// const std::vector<int64_t> group_k_number = {113, 10};
 const std::vector<uint32_t> bw = {5, 5, 5, 5, 8};
-// const std::vector<uint32_t> bw = {0, 0, 0, 0, 0};
 const size_t knn = 10;
 
 using namespace std;

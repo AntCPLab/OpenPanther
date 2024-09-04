@@ -235,7 +235,6 @@ std::vector<std::vector<uint32_t>> MultiQueryServer::DoMultiPirAnswer(
         for (int64_t idx = begin; idx < end; ++idx) {
           std::vector<std::vector<seal::Ciphertext>> query_ciphers =
               pir_server_[idx]->DeSerializeQuery(multi_query_proto.querys(idx));
-
           std::vector<seal::Ciphertext> query_reply =
               pir_server_[idx]->GenerateReply(query_ciphers, random_mask[idx]);
           reply_cipher_buffers[idx] =
