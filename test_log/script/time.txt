@@ -1,7 +1,0 @@
-Distance & 359.90 
-Argmin & 160.92 
-GC_naive_topk & 87.33 
-PIR & 1327.44 
-Point_distance & 32.50 
-End_topk_3550-10 & 90.58 
-Total & 2058.72 
