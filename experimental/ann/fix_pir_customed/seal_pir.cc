@@ -448,8 +448,24 @@ SealPirServer::SealPirServer(const SealPirOptions &options,
 }
 #endif
 
-// set database
+void SealPirServer::SetDb(
+    std::shared_ptr<std::vector<seal::Plaintext>> c_db_vec) {
+  c_db_vec_ = c_db_vec;
+  is_db_preprocessed_ = true;
+};
 
+void SealPirServer::SetDbId(std::vector<size_t> &db_id) {
+  uint32_t prod = 1;
+  for (auto n : pir_params_.nvec) {
+    prod *= n;
+  }
+  db_id_ = db_id;
+  YACL_ENFORCE(db_id_.size() < prod);
+  db_id_.resize(prod);
+  for (size_t i = db_id.size(); i < prod; i++) {
+    db_id_[i] = UINT64_MAX;
+  }
+}
 void SealPirServer::SetDatabase(
     const std::shared_ptr<IDbElementProvider> &db_provider) {
   // byte size of whole db
@@ -589,6 +605,79 @@ void SealPirServer::SetDatabase(
   // all db has been transform_to_ntt
   is_db_preprocessed_ = true;
 }
+// set database
+std::vector<seal::Plaintext> SealPirServer::SetPublicDatabase(
+    const std::vector<uint8_t> &db_flatten_bytes, size_t total_ele_number) {
+  // byte size of whole db
+
+  std::shared_ptr<IDbElementProvider> db_provider =
+      std::make_shared<MemoryDbElementProvider>(
+          db_flatten_bytes, total_ele_number * options_.element_size * 4);
+
+  uint64_t db_size = total_ele_number * options_.element_size * 4;
+  YACL_ENFORCE(db_provider->GetDbByteSize() == db_size);
+
+  uint32_t logt =
+      std::floor(std::log2(enc_params_[0]->plain_modulus().value()));
+  uint32_t N = enc_params_[0]->poly_modulus_degree();
+
+  // number of FV plaintexts needed to represent all elements
+
+  uint64_t ele_per_ptxt = pir_params_.elements_per_plaintext;
+  // uint64_t bytes_per_ptxt = ele_per_ptxt * options_.element_size * 4;
+  uint64_t coeff_per_ptxt =
+      ele_per_ptxt * CoefficientsPerElement(logt, options_.element_size);
+  // SPDLOG_INFO("{} {}", ele_per_ptxt, coeff_per_ptxt);
+
+  YACL_ENFORCE(coeff_per_ptxt <= N);
+
+  std::vector<seal::Plaintext> db_vec;
+  db_vec.reserve(total_ele_number);
+  // SPDLOG_INFO("{} {}", total_ele_number, num_of_plaintexts);
+  // byte offset
+  uint32_t offset = 0;
+  for (uint64_t i = 0; i < total_ele_number; i++) {
+    // std::cout << i << std::endl;
+    uint64_t process_bytes = options_.element_size * 4;
+
+    // Get the coefficients of the elements that will be packed in plaintext i
+    std::vector<uint8_t> element_bytes =
+        db_provider->ReadElement(offset, process_bytes);
+    // std::cout << "Read end!" << std::endl;
+
+    vector<uint64_t> coefficients(coeff_per_ptxt);
+
+    vector<uint64_t> element_coeffs =
+        EleToCoeff(logt, reinterpret_cast<uint32_t *>(element_bytes.data()),
+                   options_.element_size);
+    std::copy(element_coeffs.begin(), element_coeffs.end(),
+              coefficients.begin());
+
+    offset += process_bytes;
+
+    uint64_t used = coefficients.size();
+
+    YACL_ENFORCE(used <= coeff_per_ptxt);
+
+    // Pad the rest with 1s
+    for (uint64_t j = 0; j < (N - used); j++) {
+      coefficients.push_back(1);
+    }
+
+    seal::Plaintext plain;
+    VectorToPlaintext(coefficients, &plain);
+    db_vec.push_back(std::move(plain));
+  }
+
+  // pre process db
+  yacl::parallel_for(0, db_vec.size(), [&](int64_t begin, int64_t end) {
+    for (uint32_t i = begin; i < end; i++) {
+      evaluator_[0]->transform_to_ntt_inplace(db_vec[i],
+                                              context_[0]->first_parms_id());
+    }
+  });
+  return db_vec;
+}
 
 void SealPirServer::SetDatabase(
     const std::vector<yacl::ByteContainerView> &db_vec) {
@@ -698,7 +787,167 @@ void SealPirServer::multiply_power_of_X(const seal::Ciphertext &encrypted,
     }
   }
 }
+std::vector<seal::Ciphertext> SealPirServer::GenerateReplyCustomed(
+    const std::vector<std::vector<seal::Ciphertext>> &query_ciphers,
+    std::vector<uint64_t> &random) {
+  const auto gr_s = std::chrono::system_clock::now();
+  std::vector<uint64_t> nvec = pir_params_.nvec;
+  uint64_t product = 1;
 
+  for (auto n : nvec) {
+    product *= n;
+  }
+
+  YACL_ENFORCE(options_.query_size == 0);
+
+  std::vector<seal::Plaintext> intermediate_plain;  // decompose....
+
+  auto pool = seal::MemoryManager::GetPool();
+
+  int N = enc_params_[0]->poly_modulus_degree();
+
+  // int logt = std::floor(std::log2(enc_params_->plain_modulus().value()));
+  YACL_ENFORCE(nvec.size() == 2);
+  for (uint32_t i = 0; i < nvec.size(); i++) {
+    // const auto expand_s = std::chrono::system_clock::now();
+    std::vector<seal::Ciphertext> expanded_query;
+
+    uint64_t n_i = nvec[i];
+
+    for (uint32_t j = 0; j < query_ciphers[i].size(); j++) {
+      uint64_t total = N;
+      if (j == query_ciphers[i].size() - 1) {
+        total = n_i % N;
+      }
+      // SPDLOG_INFO("dim:{} n:{}", i, n_i);
+      std::vector<seal::Ciphertext> expanded_query_part =
+          ExpandQuery(query_ciphers[i][j], total, i);
+
+      expanded_query.insert(
+          expanded_query.end(),
+          std::make_move_iterator(expanded_query_part.begin()),
+          std::make_move_iterator(expanded_query_part.end()));
+      expanded_query_part.clear();
+    }
+
+    YACL_ENFORCE(expanded_query.size() == n_i, "size mismatch!!! {}-{}",
+                 expanded_query.size(), n_i);
+
+    // const auto expand_e = std::chrono::system_clock::now();
+    // const DurationMillis expand_time = expand_e - expand_s;
+    // SPDLOG_INFO("Expand time: {} ms", expand_time.count());
+
+    yacl::parallel_for(
+        0, expanded_query.size(), [&](int64_t begin, int64_t end) {
+          for (uint32_t jj = begin; jj < end; jj++) {
+            evaluator_[i]->transform_to_ntt_inplace(expanded_query[jj]);
+          }
+        });
+
+    YACL_ENFORCE(is_db_preprocessed_ == true);
+
+    product /= n_i;
+    std::vector<seal::Ciphertext> intermediateCtxts(product);
+    std::vector<seal::Plaintext> *cur;
+    if (i == 0) {
+      yacl::parallel_for(0, product, [&](int64_t begin, int64_t end) {
+        for (int k = begin; k < end; k++) {
+          uint64_t j = 0;
+          while (db_id_[k + j * product] == UINT64_MAX) {
+            j++;
+          }
+          auto index = db_id_[k + j * product];
+          evaluator_[i]->multiply_plain(expanded_query[j], (*c_db_vec_)[index],
+                                        intermediateCtxts[k]);
+
+          seal::Ciphertext temp;
+          for (j += 1; j < n_i; j++) {
+            if (db_id_[k + j * product] == UINT64_MAX) {
+              continue;
+            }
+
+            auto index = db_id_[k + j * product];
+            evaluator_[i]->multiply_plain(expanded_query[j],
+                                          (*c_db_vec_)[index], temp);
+            evaluator_[i]->add_inplace(intermediateCtxts[k],
+                                       temp);  // Adds to first component.
+          }
+        }
+      });
+    } else {
+      yacl::parallel_for(0, product, [&](int64_t begin, int64_t end) {
+        for (int k = begin; k < end; k++) {
+          uint64_t j = 0;
+          while ((*cur)[k + j * product].is_zero()) {
+            j++;
+          }
+          evaluator_[i]->multiply_plain(
+              expanded_query[j], (*cur)[k + j * product], intermediateCtxts[k]);
+
+          seal::Ciphertext temp;
+          for (j += 1; j < n_i; j++) {
+            if ((*cur)[k + j * product].is_zero()) {
+              continue;
+            }
+            evaluator_[i]->multiply_plain(expanded_query[j],
+                                          (*cur)[k + j * product], temp);
+            evaluator_[i]->add_inplace(intermediateCtxts[k],
+                                       temp);  // Adds to first component.
+          }
+        }
+      });
+    }
+    yacl::parallel_for(
+        0, intermediateCtxts.size(), [&](int64_t begin, int64_t end) {
+          for (uint32_t jj = begin; jj < end; jj++) {
+            evaluator_[i]->transform_from_ntt_inplace(intermediateCtxts[jj]);
+            if (pir_params_.enable_mswitching) {
+              evaluator_[i]->mod_switch_to_inplace(
+                  intermediateCtxts[jj], context_[i]->last_parms_id());
+              seal::Ciphertext zero_ct;
+              if (i != nvec.size() - 1) {
+                seal::util::encrypt_zero_asymmetric(
+                    public_key_[i], *context_[i], context_[i]->last_parms_id(),
+                    intermediateCtxts[jj].is_ntt_form(), zero_ct);
+                evaluator_[i]->add_inplace(intermediateCtxts[jj], zero_ct);
+              }
+            }
+          }
+        });
+
+    if (i == nvec.size() - 1) {
+      H2A(intermediateCtxts, random);
+      const auto gr_e = std::chrono::system_clock::now();
+      const DurationMillis g_reply_time = gr_e - gr_s;
+      // SPDLOG_INFO("Generate reply time: {}", g_reply_time.count());
+      return intermediateCtxts;
+    } else {
+      intermediate_plain.clear();
+      intermediate_plain.reserve(pir_params_.expansion_ratio * product);
+      cur = &intermediate_plain;
+
+      for (uint64_t rr = 0; rr < product; rr++) {
+        seal::EncryptionParameters parms;
+        if (pir_params_.enable_mswitching) {
+          parms = context_[i]->last_context_data()->parms();
+        } else {
+          parms = context_[i]->first_context_data()->parms();
+        }
+
+        std::vector<seal::Plaintext> plains =
+            DecomposeToPlaintexts(parms, intermediateCtxts[rr]);
+
+        for (uint32_t jj = 0; jj < plains.size(); jj++) {
+          intermediate_plain.emplace_back(plains[jj]);
+        }
+      }
+      product = intermediate_plain.size();  // multiply by expansion rate.
+    }
+  }
+
+  std::vector<seal::Ciphertext> fail(1);
+  return fail;
+}
 std::vector<seal::Ciphertext> SealPirServer::GenerateReply(
     const std::vector<std::vector<seal::Ciphertext>> &query_ciphers,
     std::vector<uint64_t> &random) {

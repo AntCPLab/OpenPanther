@@ -51,6 +51,18 @@ spu_cc_test(
 )
 
 spu_cc_binary(
+    name = "panther_util_test",
+    srcs = ["panther_util_test.cc"],
+    copts = AES_COPT_FLAGS,
+    deps = [
+        ":panther_util",
+        "//libspu/mpc/cheetah/rlwe:lwe",
+        "@com_github_microsoft_seal//:seal",
+        "//libspu/mpc/utils:simulate",
+    ],
+)
+
+spu_cc_binary(
     name = "demo_test",
     srcs = ["panther_demo_test.cc"],
     copts = AES_COPT_FLAGS,
@@ -135,12 +147,6 @@ spu_cc_library(
 spu_cc_binary(
     name = "panther_demo",
     srcs = ["panther_demo.cc"],
-    data = ["dataset/dataset.txt", 
-    "dataset/test.txt",
-    "dataset/centrios.txt",
-    "dataset/ptoc.txt",
-    "dataset/neighbors.txt",
-    "dataset/stash.txt"],
     copts = AES_COPT_FLAGS,
     deps = [
         ":dist_cmp",

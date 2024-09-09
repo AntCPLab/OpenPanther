@@ -67,6 +67,27 @@ void MultiQueryServer::GenerateSimpleHash() {
     max_bin_item_size_ = std::max(max_bin_item_size_, hash_.size());
   }
 }
+void MultiQueryServer::SetDbSeperateId(const std::vector<uint8_t> &db_bytes) {
+  std::shared_ptr<std::vector<seal::Plaintext>> db_plaintext =
+      std::make_shared<std::vector<seal::Plaintext>>();
+  *db_plaintext = pir_server_[0]->SetPublicDatabase(
+      db_bytes, query_options_.seal_options.element_number);
+  SPDLOG_INFO("Number of element: {}",
+              query_options_.seal_options.element_number);
+  for (size_t idx = 0; idx < cuckoo_params_.NumBins(); ++idx) {
+    std::vector<size_t> db_id;
+    db_id.reserve(max_bin_item_size_);
+
+    for (size_t j : simple_hash_[idx]) {
+      db_id.emplace_back(j);
+    }
+    for (size_t j = simple_hash_[idx].size(); j < max_bin_item_size_; ++j) {
+      db_id.emplace_back(UINT64_MAX);
+    }
+    pir_server_[idx]->SetDbId(db_id);
+    pir_server_[idx]->SetDb(db_plaintext);
+  }
+}
 
 void MultiQueryServer::SetDatabase(yacl::ByteContainerView db_bytes) {
   std::vector<uint8_t> zero_bytes(query_options_.seal_options.element_size * 4,
@@ -236,7 +257,8 @@ std::vector<std::vector<uint32_t>> MultiQueryServer::DoMultiPirAnswer(
           std::vector<std::vector<seal::Ciphertext>> query_ciphers =
               pir_server_[idx]->DeSerializeQuery(multi_query_proto.querys(idx));
           std::vector<seal::Ciphertext> query_reply =
-              pir_server_[idx]->GenerateReply(query_ciphers, random_mask[idx]);
+              pir_server_[idx]->GenerateReplyCustomed(query_ciphers,
+                                                      random_mask[idx]);
           reply_cipher_buffers[idx] =
               pir_server_[idx]->SerializeCiphertexts(query_reply);
         }
@@ -490,73 +512,6 @@ std::vector<std::vector<uint32_t>> MultiQueryClient::DoMultiPirQuery(
   }
 
   return answers;
-}
-
-std::vector<std::vector<seal::Ciphertext>> MultiQueryClient::GenerateMultiQuery(
-    std::vector<MultiQueryItem> &multi_query) {
-  std::vector<std::vector<seal::Ciphertext>> query(
-      multi_query.size(), std::vector<seal::Ciphertext>(2));
-  for (size_t i = 0; i < multi_query.size(); i++) {
-    for (size_t j = 0; j < query[i].size(); j++) {
-      query[i][j].reserve(4096 * 3 * 2);
-    }
-  }
-  for (size_t i = 0; i < multi_query.size(); i++) {
-    // auto index = multi_query[i].bin_item_index;
-
-    // indices_ = ComputeIndices(index, pir_params_.nvec);
-
-    // // ComputeInverseScales();
-    // YACL_ENFORCE(indices_.size() == 2);
-    // // std::vector<std::vector<seal::Ciphertext>> result(pir_params_.d);
-    // int N = 4096;
-
-    // seal::Plaintext pt(N);
-    // for (uint32_t i = 0; i < indices_.size(); i++) {
-    //   uint32_t num_ptxts = ceil((pir_params_.nvec[i] + 0.0) / N);
-    //   YACL_ENFORCE(num_ptxts == 1);
-    //   uint64_t log_total;
-    //   pt.set_zero();
-
-    //   uint64_t real_index = indices_[i];
-    //   int64_t n_i = pir_params_.nvec[i];
-    //   uint64_t total = N;
-    //   total = n_i % N;
-    //   log_total = ceil(log2(total));
-    //   pt[real_index] = 1;
-    //   seal::Ciphertext dest;
-    //   if (pir_params_.enable_symmetric) {
-    //     encryptor_[i]->encrypt_symmetric(pt, dest);
-    //   } else {
-    //     encryptor_[i]->encrypt(pt, dest);
-    //   }
-
-    //   const auto &modulus = context_[i]
-    //                             ->get_context_data(dest.parms_id())
-    //                             ->parms()
-    //                             .coeff_modulus();
-    //   size_t num_modulus = dest.coeff_modulus_size();
-    //   size_t num_coeff = dest.poly_modulus_degree();
-
-    //   // std::cout << dest.size() << std::endl;
-    //   for (size_t k = 0; k < dest.size(); k++) {
-    //     uint64_t *dst_ptr = dest.data(k);
-    //     for (size_t l = 0; l < num_modulus; ++l) {
-    //       uint64_t inv_;
-    //       seal::util::MultiplyUIntModOperand a;
-    //       seal::util::try_invert_uint_mod(pow(2, log_total), modulus.at(l),
-    //                                       inv_);
-    //       a.set(inv_, modulus[l]);
-    //       seal::util::multiply_poly_scalar_coeffmod(dst_ptr, num_coeff, a,
-    //                                                 modulus.at(l), dst_ptr);
-    //       dst_ptr += num_coeff;
-    //     }
-    //   }
-
-    //   query[i].push_back(dest);
-    // }
-  }
-  return query;
 }
 
 std::vector<std::vector<uint32_t>> MultiQueryClient::DoMultiPirQuery(

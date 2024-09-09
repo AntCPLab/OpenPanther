@@ -115,6 +115,8 @@ class MultiQueryServer : public MultiQuery {
 
   void SetDatabase(yacl::ByteContainerView db_bytes);
 
+  void SetDbSeperateId(const std::vector<uint8_t> &db_bytes);
+
   void SetGaloisKeys(const seal::GaloisKeys &galkey, size_t dim) {
     for (size_t idx = 0; idx < pir_server_.size(); ++idx) {
       pir_server_[idx]->SetGaloisKeys(galkey, dim);

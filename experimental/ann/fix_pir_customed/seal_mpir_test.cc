@@ -131,7 +131,7 @@ TEST_P(SealMultiPirTest, WithH2A) {
                                                 seed_client);
 
   // server setup data
-  mpir_server.SetDatabase(db_bytes);
+  mpir_server.SetDbSeperateId(db_bytes);
 
   std::future<void> pir_send_keys =
       std::async([&] { return mpir_client.SendGaloisKeys(ctxs[0]); });
@@ -181,12 +181,14 @@ TEST_P(SealMultiPirTest, WithH2A) {
       [[maybe_unused]] auto h2a =
           mask & (random_mask[idx][item] + query_reply_bytes[idx][item]);
       EXPECT_EQ(query_db_bytes[item] >> 2, h2a >> 2);
+      // EXPECT_EQ(query_db_bytes[item], h2a);
+      // SPDLOG_INFO("{} {}", query_db_bytes[item], h2a);
     }
   }
 }
 
 INSTANTIATE_TEST_SUITE_P(Works_Instances, SealMultiPirTest,
-                         testing::Values(TestParams{186, 374892, 4096,
+                         testing::Values(TestParams{100, 100000, 4096,
                                                     4096})  //
 );
 

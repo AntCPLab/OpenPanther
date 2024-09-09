@@ -1,7 +1,61 @@
 #include "panther_util.h"
 using DurationMillis = std::chrono::duration<double, std::milli>;
+using namespace spu;
 
 namespace sanns {
+
+// This function is used to transform input to parellized form
+spu::NdArrayRef PrepareBatchArgmin(std::vector<uint32_t>& input,
+                                   const std::vector<int64_t>& num_center,
+                                   const std::vector<int64_t>& num_bin,
+                                   spu::Shape shape, uint32_t init_v) {
+  spu::FieldType field = spu::FM32;
+  int64_t sum_bin = shape[0];
+  int64_t max_bin_size = shape[1];
+
+  size_t group_num = num_center.size();
+  SPU_ENFORCE(num_bin.size() == group_num);
+
+  NdArrayRef res(makeType<RingTy>(spu::FM32), shape);
+  auto numel = res.numel();
+  DISPATCH_ALL_FIELDS(field, "Init", [&]() {
+    NdArrayView<ring2k_t> _res(res);
+    pforeach(0, numel, [&](int64_t idx) { _res[idx] = ring2k_t(init_v); });
+  });
+
+  spu::pforeach(0, sum_bin, [&](int64_t begin, int64_t end) {
+    for (int64_t bin_index = begin; bin_index < end; bin_index++) {
+      int64_t sum = num_bin[0];
+      size_t point_sum = 0;
+      // in which group
+      size_t group_i = 0;
+      while (group_i < group_num) {
+        if (bin_index < sum) {
+          break;
+        }
+        sum += num_bin[group_i + 1];
+        point_sum += num_center[group_i];
+        group_i++;
+      }
+      sum -= num_bin[group_i];
+      int64_t bin_size =
+          std::ceil((float)num_center[group_i] / num_bin[group_i]);
+
+      int64_t index_in_group = bin_index - sum;
+      if (bin_size * index_in_group < num_center[group_i]) {
+        auto now_bin_size =
+            min(bin_size, num_center[group_i] - index_in_group * bin_size);
+        DISPATCH_ALL_FIELDS(spu::FM32, "trans_to_topk", [&]() {
+          auto xres = NdArrayView<ring2k_t>(res);
+          mempcpy(&xres[bin_index * max_bin_size],
+                  &input[point_sum + index_in_group * bin_size],
+                  now_bin_size * 4);
+        });
+      }
+    }
+  });
+  return res;
+}
 std::vector<std::vector<uint32_t>> read_data(size_t n, size_t dim,
                                              string filename) {
   std::ifstream inputFile("./experimental/ann/" + filename);
@@ -222,4 +276,25 @@ std::vector<std::vector<uint32_t>> FixPirResult(
   });
   return result;
 }
+
+void PirResultForm(const std::vector<std::vector<uint32_t>>& input,
+                   std::vector<std::vector<uint32_t>>& p,
+                   std::vector<std::vector<uint32_t>>& id,
+                   std::vector<std::vector<uint32_t>>& p_2, size_t dims,
+                   size_t message) {
+  SPU_ENFORCE(input[0].size() == dims + 2 * message);
+  int64_t numel = input.size();
+  pforeach(0, numel, [&](int64_t begin, int64_t end) {
+    for (int64_t i = begin; i < end; i++) {
+      memcpy(&p[i], &input[i], dims * 4);
+      id[i] = 0;
+      p_2[i] = 0;
+      for (size_t m_i = dims; m_i < dims + message; m_i++) {
+        id[i] = id[i] << size_of(uint8_t);
+        p_2[i] = p_2[i] << size_of(uint8_t);
+        id[i] += input[m_i];
+        p_2[i] = input[m_i + message];
+      }
+    });
+};
 }  // namespace sanns

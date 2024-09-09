@@ -211,6 +211,9 @@ class SealPirServer : public SealPir {
   std::vector<seal::Ciphertext> ExpandQuery(const seal::Ciphertext &encrypted,
                                             std::uint32_t m, size_t dim);
 
+  std::vector<seal::Ciphertext> GenerateReplyCustomed(
+      const std::vector<std::vector<seal::Ciphertext>> &query_ciphers,
+      std::vector<uint64_t> &random);
   // GenerateReply for query_ciphers
   std::vector<seal::Ciphertext> GenerateReply(
       const std::vector<std::vector<seal::Ciphertext>> &query_ciphers,
@@ -234,6 +237,12 @@ class SealPirServer : public SealPir {
   void H2A(std::vector<seal::Ciphertext> &ct,
            std::vector<uint64_t> &random_mask);
 
+  std::vector<seal::Plaintext> SetPublicDatabase(
+      const std::vector<uint8_t> &db_flatten_bytes, size_t total_ele_number);
+
+  void SetDbId(std::vector<size_t> &db_id);
+  void SetDb(std::shared_ptr<std::vector<seal::Plaintext>> c_db_vec);
+
  private:
   struct Impl;
   std::shared_ptr<Impl> impl_;
@@ -242,6 +251,12 @@ class SealPirServer : public SealPir {
 #ifdef DEC_DEBUG_
   SealPirClient &client_;
 #endif
+
+  // customed db
+  std::shared_ptr<std::vector<seal::Plaintext>> c_db_vec_;
+
+  // saved the id in each bucket
+  std::vector<size_t> db_id_;
 
   std::vector<std::unique_ptr<std::vector<seal::Plaintext>>> db_vec_;
 

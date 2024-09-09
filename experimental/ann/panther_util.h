@@ -61,4 +61,15 @@ std::vector<std::vector<uint32_t>> FixPirResult(
     std::vector<std::vector<uint32_t>>& pir_result, size_t logt,
     size_t shift_bits, size_t target_bits, int64_t num_points,
     int64_t points_dim, const std::shared_ptr<spu::KernelEvalContext>& ct);
+
+spu::NdArrayRef PrepareBatchArgmin(std::vector<uint32_t>& input,
+                                   const std::vector<int64_t>& num_center,
+                                   const std::vector<int64_t>& num_bin,
+                                   spu::Shape shape, uint32_t init_v);
+void PirResultForm(const std::vector<std::vector<uint32_t>>& input,
+                   std::vector<std::vector<uint32_t>>& p,
+                   std::vector<std::vector<uint32_t>>& id,
+                   std::vector<std::vector<uint32_t>>& p_2, size_t dims,
+                   size_t message);
+
 }  // namespace sanns

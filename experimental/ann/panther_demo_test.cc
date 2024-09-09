@@ -275,7 +275,7 @@ int main() {
 
   auto encoded_db = PirData(cluster_num, ele_size, ps, ptoc, pir_logt,
                             max_cluster_points, pir_fixt);
-  auto ctxs = yacl::link::test::SetupBrpcWorld(2);
+  auto ctxs = yacl::link::test::SetupWorld(2);
 
   // use dh key exchange get shared oracle seed
   psi::SodiumCurve25519Cryptor c25519_cryptor0;

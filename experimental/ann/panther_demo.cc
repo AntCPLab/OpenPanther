@@ -208,7 +208,7 @@ spu::seal_pir::MultiQueryServer PrepareMpirServer(
   spu::seal_pir::MultiQueryServer mpir_server(options, cuckoo_params,
                                               seed_server);
 
-  mpir_server.SetDatabase(db_bytes);
+  mpir_server.SetDbSeperateId(db_bytes);
   mpir_server.RecvGaloisKeys(lctx);
   mpir_server.RecvPublicKey(lctx);
   return mpir_server;
