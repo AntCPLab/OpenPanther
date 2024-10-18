@@ -65,7 +65,7 @@ class DisServer {
  private:
   void DecodePolyToVector(const seal::Plaintext &poly,
                           std::vector<uint32_t> &out);
-
+  uint32_t logt_;
   std::shared_ptr<yacl::link::Context> conn_;
   size_t degree_;
   struct Impl;

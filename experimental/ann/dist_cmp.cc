@@ -176,6 +176,7 @@ struct DisServer::Impl : public spu::mpc::cheetah::EnableCPRNG {
 DisServer::DisServer(size_t degree, size_t logt,
                      const std::shared_ptr<yacl::link::Context> &conn) {
   degree_ = degree;
+  logt_ = logt;
   seal_params_ =
       std::make_unique<seal::EncryptionParameters>(seal::scheme_type::bfv);
   seal_params_->set_poly_modulus_degree(degree);
@@ -201,6 +202,7 @@ DisServer::DisServer(size_t degree, size_t logt,
   std::vector<seal::Modulus> raw_modulus = seal_params_->coeff_modulus();
   std::vector<seal::Modulus> modulus = seal_params_->coeff_modulus();
   if (degree != 2048) {
+    modulus.pop_back();
     modulus.pop_back();
   }
   // modulus.pop_back();
@@ -241,7 +243,6 @@ std::vector<uint32_t> DisServer::DoDistanceCmp(
   std::vector<seal::Plaintext> pre_points = PrePoints(points);
   std::vector<seal::Ciphertext> response(num_rlwes);
   size_t point_dim = q.size();
-
   yacl::parallel_for(0, point_dim, [&](size_t begin, size_t end) {
     for (size_t i = begin; i < end; i++) {
       if (q[i].is_ntt_form() == false)
@@ -291,6 +292,7 @@ std::vector<uint32_t> DisServer::DoDistanceCmp(
     auto tag = "distance";
     conn_->SendAsync(next, ciphers[i], tag);
   }
+
   // auto tag = "distance";
   // conn_->Send(next, ciphers[num_rlwes - 1], tag);
   return rand_msk;
@@ -392,11 +394,23 @@ std::vector<uint32_t> DisServer::H2A(std::vector<seal::Ciphertext> &ct,
                                         ct[idx].is_ntt_form(), zero_ct);
     evaluator_->add_inplace(ct[idx], zero_ct);
 
-    impl_->UniformPoly(*context_, &rand, ct[idx].parms_id());
+    spu::mpc::cheetah::ModulusSwtichInplace(ct[idx], 1, *context_);
+
+    // impl_->UniformPoly(*context_, &rand, ct[idx].parms_id());
+    auto pid = ct[idx].parms_id() == seal::parms_id_zero
+                   ? context_->first_parms_id()
+                   : ct[idx].parms_id();
+    auto cntxt = context_->get_context_data(pid);
+    rand.parms_id() = seal::parms_id_zero;
+    rand.resize(degree_);
+
+    memcpy(rand.data(), ct[idx].data(0), degree_ * 8);
+    rand.parms_id() = cntxt->parms_id();
+
     spu::mpc::cheetah::SubPlainInplace(ct[idx], rand, *context_);
 
-    spu::mpc::cheetah::ModulusSwtichInplace(ct[idx], 1, *context_);
     DecodePolyToVector(rand, out);
+
     for (size_t coeff_i = 0; coeff_i < degree_ && count < points_num;
          coeff_i++) {
       res[count] = out[coeff_i];
@@ -456,24 +470,27 @@ std::vector<seal::Plaintext> DisServer::PrePoints(
     std::vector<std::vector<uint32_t>> &points) {
   auto num_points = points.size();
   auto point_dim = points[0].size();
-  size_t num_bfv =
+  // std::cout << num_points << " " << point_dim << std::endl;
+  int64_t num_bfv =
       point_dim * std::ceil(static_cast<double>(num_points) / degree_);
   std::vector<seal::Plaintext> plain_p(num_bfv, seal::Plaintext(degree_));
+
+  uint32_t MASK = (1 << logt_) - 1;
   for (size_t j = 0; j < point_dim; j++) {
     for (size_t i = 0; i < num_points; i++) {
       size_t bfv_index = i / degree_;
       size_t coeff_index = i % degree_;
-      plain_p[j + bfv_index * point_dim][coeff_index] = points[i][j];
+      plain_p[j + bfv_index * point_dim][coeff_index] = points[i][j] & MASK;
     }
   }
-  // yacl::set_num_threads(1);
-  yacl::parallel_for(0, num_bfv, [&](size_t begin, size_t end) {
-    for (size_t idx = begin; idx < end; idx++) {
+
+  std::vector<seal::Plaintext> pp_ntt(num_bfv, seal::Plaintext(degree_));
+  yacl::parallel_for(0, num_bfv, [&](int64_t begin, int64_t end) {
+    for (int64_t idx = begin; idx < end; idx++) {
       evaluator_->transform_to_ntt_inplace(plain_p[idx],
                                            context_->first_parms_id());
     }
   });
-
   return plain_p;
 }
 

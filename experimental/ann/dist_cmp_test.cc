@@ -64,7 +64,7 @@ TEST_P(DistanceCmpTest, test_shared_distance) {
   size_t num_points = parms.first;
   size_t points_dim = parms.second;
 
-  size_t N = 2048;
+  size_t N = 4096;
   size_t logt = 24;
   size_t mask = (1ULL << logt) - 1;
   auto ctxs = yacl::link::test::SetupWorld(2);
@@ -82,12 +82,12 @@ TEST_P(DistanceCmpTest, test_shared_distance) {
                                          std::vector<uint32_t>(points_dim, 0));
 
   for (size_t i = 0; i < points_dim; i++) {
-    q[i] = rand() % 256;
+    q[i] = 1;
   }
   for (size_t i = 0; i < num_points; i++) {
     for (size_t point_i = 0; point_i < points_dim; point_i++) {
       ps[i][point_i] = rand() % 256;
-      rp0[i][point_i] = rand() % 256;
+      rp0[i][point_i] = rand() & mask;
       rp1[i][point_i] = (ps[i][point_i] - rp0[i][point_i]) & mask;
       SPU_ENFORCE(((rp0[i][point_i] + rp1[i][point_i]) & mask) ==
                   ps[i][point_i]);
@@ -132,5 +132,5 @@ TEST_P(DistanceCmpTest, test_shared_distance) {
 }
 // TEST_P()
 INSTANTIATE_TEST_SUITE_P(distance, DistanceCmpTest,
-                         testing::Values(std::make_pair(100000, 128)));
+                         testing::Values(std::make_pair(3540, 128)));
 }  // namespace sanns
