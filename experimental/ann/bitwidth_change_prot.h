@@ -31,15 +31,10 @@ class BitWidthChangeProtocol {
   spu::NdArrayRef ExtendCompute(const spu::NdArrayRef &inp, size_t bw,
                                 size_t extend_bw);
 
+  spu::NdArrayRef ExtendComputeOpt(const spu::NdArrayRef &inp, size_t bw,
+                                   size_t extend_bw);
+
  private:
-  //   NdArrayRef ComputeWrap(const NdArrayRef &inp, const Meta &meta);
-
-  //   // w = msbA | msbB
-  //   NdArrayRef MSB0ToWrap(const NdArrayRef &inp, size_t shift_bits);
-
-  //   // w = msbA & msbB
-  //   NdArrayRef MSB1ToWrap(const NdArrayRef &inp, size_t shift_bits);
-
   std::shared_ptr<spu::mpc::cheetah::BasicOTProtocols> basic_ot_prot_ = nullptr;
 };
 

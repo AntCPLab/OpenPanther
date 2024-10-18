@@ -58,6 +58,7 @@ spu::NdArrayRef BitWidthChangeProtocol::TrunReduceCompute(
 
 spu::NdArrayRef BitWidthChangeProtocol::ExtendCompute(
     const spu::NdArrayRef& inp, size_t bw, size_t extend_bw) {
+  // Known MSB extend
   const int rank = basic_ot_prot_->Rank();
   const auto field = inp.eltype().as<spu::Ring2k>()->field();
   const int64_t numel = inp.numel();
@@ -110,9 +111,29 @@ spu::NdArrayRef BitWidthChangeProtocol::ExtendCompute(
   }
   auto wrap_bool = basic_ot_prot_->B2ASingleBitWithSize(
       outp.as(spu::makeType<spu::mpc::cheetah::BShrTy>(field, 1)),
-      static_cast<int>(extend_bw));
+      static_cast<int>(extend_bw + 1));
   spu::mpc::ring_lshift_(wrap_bool, bw);
   auto extend_result = spu::mpc::ring_sub(inp, wrap_bool);
+  return extend_result;
+}
+
+spu::NdArrayRef BitWidthChangeProtocol::ExtendComputeOpt(
+    const spu::NdArrayRef& inp, size_t bw, size_t extend_bw) {
+  // Known MSB extend
+  // If [x] > 0, the MSB is 0
+  // [x] = MSB||x_l
+  // the wrap bit of low bits x_l will be [msb]_0 ^ [msb]_1
+
+  const auto field = inp.eltype().as<spu::Ring2k>()->field();
+
+  spu::NdArrayRef outp = spu::mpc::ring_rshift(inp, bw - 1);
+
+  auto wrap_bool = basic_ot_prot_->B2ASingleBitWithSize(
+      outp.as(spu::makeType<spu::mpc::cheetah::BShrTy>(field, 1)),
+      static_cast<int>(extend_bw + 1));
+  spu::mpc::ring_lshift_(wrap_bool, bw - 1);
+  auto extend_result = spu::mpc::ring_bitmask(inp, 0, bw - 1);
+  spu::mpc::ring_sub_(extend_result, wrap_bool);
   return extend_result;
 }
 }  // namespace sanns
