@@ -1406,6 +1406,11 @@ void SealPirServer::H2A(std::vector<seal::Ciphertext> &ct,
   seal::Plaintext rand;
   seal::Ciphertext zero_ct;
   SPU_ENFORCE(ct.size() == 2);
+
+  seal::util::encrypt_zero_asymmetric(public_key_[1], *context_[1],
+                                      ct[0].parms_id(), ct[0].is_ntt_form(),
+                                      zero_ct);
+  evaluator_[1]->add_inplace(ct[0], zero_ct);
   auto pid = ct[0].parms_id() == seal::parms_id_zero
                  ? context_[1]->first_parms_id()
                  : ct[0].parms_id();
@@ -1416,6 +1421,9 @@ void SealPirServer::H2A(std::vector<seal::Ciphertext> &ct,
   memcpy(rand.data(), ct[0].data(0), enc_params_[1]->poly_modulus_degree() * 8);
 
   rand.parms_id() = cntxt->parms_id();
+
+  spu::mpc::cheetah::SubPlainInplace(ct[0], rand, *context_[1]);
+
   // impl_->UniformPoly(*context_[1], &rand, ct[0].parms_id());
   seal::Plaintext dest;
   DecodePolyToVector(rand, dest, enc_params_[1]->poly_modulus_degree(), 1);
@@ -1424,15 +1432,7 @@ void SealPirServer::H2A(std::vector<seal::Ciphertext> &ct,
   DecodePolyToVector(dest, dest_2, enc_params_[0]->poly_modulus_degree(), 0);
 
   memcpy(random_mask.data(), dest_2.data(), random_mask.size() * 8);
-  for (size_t idx = 0; idx < ct.size(); idx = idx + 2) {
-    // TODO(ljy): preprocess generate more encrypted_zero
-    // spu::mpc::cheetah::ModulusSwtichInplace(ct[idx], 1, *context_[1]);
-    seal::util::encrypt_zero_asymmetric(public_key_[1], *context_[1],
-                                        ct[idx].parms_id(),
-                                        ct[idx].is_ntt_form(), zero_ct);
-    evaluator_[1]->add_inplace(ct[idx], zero_ct);
-    spu::mpc::cheetah::SubPlainInplace(ct[idx], rand, *context_[1]);
-  }
+  // }
 }
 
 // Client Defination
