@@ -45,7 +45,7 @@ std::vector<uint8_t> GenerateDbData(TestParams params) {
 
   for (uint64_t i = 0; i < params.element_number; i++) {
     for (uint64_t j = 0; j < params.element_size; j++) {
-      auto val = rand() % 512;
+      auto val = 111 % 2048;
       val = (val << 2) + 1;
       db_raw_data[(i * params.element_size) + j] = val;
     }
@@ -82,7 +82,7 @@ using DurationMillis = std::chrono::duration<double, std::milli>;
 class SealMultiPirTest : public testing::TestWithParam<TestParams> {};
 
 TEST_P(SealMultiPirTest, WithH2A) {
-  yacl::set_num_threads(64);
+  yacl::set_num_threads(32);
   auto params = GetParam();
   size_t element_number = params.element_number;
   size_t element_size = params.element_size;
@@ -166,7 +166,7 @@ TEST_P(SealMultiPirTest, WithH2A) {
   const DurationMillis pir_time = pir_end_time - pir_start_time;
 
   SPDLOG_INFO("pir time(online) : {} ms", pir_time.count());
-  auto logt = 12;
+  auto logt = 13;
   uint32_t mask = (1ULL << logt) - 1;
   for (size_t idx = 0; idx < query_reply_bytes.size(); ++idx) {
     if (mpir_client.test_query[idx].db_index == 0) continue;

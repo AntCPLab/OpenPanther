@@ -1375,11 +1375,10 @@ void SealPirServer::DoPirAnswer(
       DeSerializeQuery(query_proto);
   SPDLOG_INFO("Finished deserialize query");
   // SPDLOG_INFO("Start Generate Reply");
-  auto poly_degree = enc_params_[0]->poly_modulus_degree();
-  std::vector<uint64_t> random(poly_degree);
+  // auto poly_degree = enc_params_[0]->poly_modulus_degree();
+  // std::vector<uint64_t> random(poly_degree);
 
-  std::vector<seal::Ciphertext> reply_ciphers =
-      GenerateReply(query_ciphers, random);
+  std::vector<seal::Ciphertext> reply_ciphers = GenerateReply(query_ciphers);
   yacl::Buffer reply_buffer = SerializeCiphertexts(reply_ciphers);
   link_ctx->SendAsync(
       link_ctx->NextRank(), reply_buffer,
@@ -1406,8 +1405,18 @@ void SealPirServer::H2A(std::vector<seal::Ciphertext> &ct,
                         std::vector<uint64_t> &random_mask) {
   seal::Plaintext rand;
   seal::Ciphertext zero_ct;
+  SPU_ENFORCE(ct.size() == 2);
+  auto pid = ct[0].parms_id() == seal::parms_id_zero
+                 ? context_[1]->first_parms_id()
+                 : ct[0].parms_id();
 
-  impl_->UniformPoly(*context_[1], &rand, ct[0].parms_id());
+  auto cntxt = context_[1]->get_context_data(pid);
+  rand.parms_id() = seal::parms_id_zero;
+  rand.resize(enc_params_[1]->poly_modulus_degree());
+  memcpy(rand.data(), ct[0].data(0), enc_params_[1]->poly_modulus_degree() * 8);
+
+  rand.parms_id() = cntxt->parms_id();
+  // impl_->UniformPoly(*context_[1], &rand, ct[0].parms_id());
   seal::Plaintext dest;
   DecodePolyToVector(rand, dest, enc_params_[1]->poly_modulus_degree(), 1);
   seal::Plaintext dest_2;

@@ -49,7 +49,7 @@ struct SealPirOptions {
   // 那整个数据库分成了10份，Client端在查询的时候，就只在其中的某一份进行查询
   size_t query_size = 0;
   // log2 of plaintext modulus
-  size_t logt = 12;
+  size_t logt = 13;
 };
 
 struct PirParams {

@@ -74,10 +74,8 @@ TEST_P(SealPirTest, Works) {
 
   spu::seal_pir::SealPirOptions options{n, params.element_number,
                                         params.element_size, params.query_size};
-  std::cout << '1' << std::endl;
   spu::seal_pir::SealPirClient client(options);
 
-  std::cout << '2' << std::endl;
   std::shared_ptr<IDbPlaintextStore> plaintext_store =
       std::make_shared<MemoryDbPlaintextStore>();
 #ifdef DEC_DEBUG_
@@ -86,7 +84,6 @@ TEST_P(SealPirTest, Works) {
   spu::seal_pir::SealPirServer server(options, plaintext_store);
 #endif
 
-  std::cout << '3' << std::endl;
   // === server setup
   // using uint32_t to save coeff
 
