@@ -10,7 +10,7 @@ namespace sanns {
 class BatchArgmaxTest
     : public ::testing::TestWithParam<std::pair<int64_t, int64_t>> {};
 
-TEST_P(BatchArgmaxTest, localtruncate) {
+TEST_P(BatchArgmaxTest, truncate) {
   using namespace spu;
   yacl::set_num_threads(1);
   auto parms = GetParam();
