@@ -200,11 +200,92 @@ std::vector<int32_t> TopK(size_t n, size_t k, size_t item_bits, size_t id_bits,
     INDEX[i] = A_idx[i] + B_idx[i];
     INPUT[i] = A[i] + B[i];
   }
-
   sanns::gc::BitonicTopk(INPUT.get(), INDEX.get(), n, k, true);
-
   for (size_t i = 0; i < k; i++) {
     gc_id[i] = INDEX[i].reveal<int32_t>(BOB);
+    // std::cout << gc_id[i] << ":" << INPUT[i].reveal<int32_t>(BOB) <<
+    // std::endl;
+  };
+  return gc_id;
+}
+
+std::vector<int32_t> EndTopK(size_t n, size_t k, size_t item_bits,
+                             size_t id_bits, size_t n_stash, size_t stash_bits,
+                             size_t discard_bits, std::vector<uint32_t> &input,
+                             std::vector<uint32_t> &index,
+                             std::vector<uint32_t> &stash,
+                             std::vector<uint32_t> &stash_id) {
+  std::vector<int32_t> gc_id(k);
+  int32_t item_mask = (1 << item_bits) - 1;
+  int32_t id_mask = (1 << id_bits) - 1;
+
+  int32_t s_item_mask = (1 << stash_bits) - 1;
+  int32_t s_id_mask = (1 << id_bits) - 1;
+
+  std::unique_ptr<emp::Integer[]> A = std::make_unique<emp::Integer[]>(n + k);
+  std::unique_ptr<emp::Integer[]> B = std::make_unique<emp::Integer[]>(n + k);
+
+  std::unique_ptr<emp::Integer[]> A_idx =
+      std::make_unique<emp::Integer[]>(n + k);
+  std::unique_ptr<emp::Integer[]> B_idx =
+      std::make_unique<emp::Integer[]>(n + k);
+  std::unique_ptr<emp::Integer[]> INPUT =
+      std::make_unique<emp::Integer[]>(n + k);
+  std::unique_ptr<emp::Integer[]> INDEX =
+      std::make_unique<emp::Integer[]>(n + k);
+  std::unique_ptr<emp::Integer[]> SA =
+      std::make_unique<emp::Integer[]>(n_stash);
+  std::unique_ptr<emp::Integer[]> SB =
+      std::make_unique<emp::Integer[]>(n_stash);
+
+  std::unique_ptr<emp::Integer[]> SA_idx =
+      std::make_unique<emp::Integer[]>(n_stash);
+  std::unique_ptr<emp::Integer[]> SB_idx =
+      std::make_unique<emp::Integer[]>(n_stash);
+  std::unique_ptr<emp::Integer[]> SINPUT =
+      std::make_unique<emp::Integer[]>(n_stash);
+  std::unique_ptr<emp::Integer[]> SINDEX =
+      std::make_unique<emp::Integer[]>(n_stash);
+  // std::cout << n << " " << k << std::endl;
+  for (size_t i = 0; i < n; ++i) {
+    input[i] &= item_mask;
+    index[i] &= id_mask;
+    A[i] = Integer(item_bits, input[i], ALICE);
+    B[i] = Integer(item_bits, input[i], BOB);
+    A_idx[i] = Integer(id_bits, index[i], ALICE);
+    B_idx[i] = Integer(id_bits, index[i], BOB);
+  }
+
+  for (size_t i = 0; i < n_stash; ++i) {
+    stash[i] &= s_item_mask;
+    stash_id[i] &= s_id_mask;
+    SA[i] = Integer(stash_bits, stash[i], ALICE);
+    SB[i] = Integer(stash_bits, stash[i], BOB);
+    SA_idx[i] = Integer(id_bits, stash_id[i], ALICE);
+    SB_idx[i] = Integer(id_bits, stash_id[i], BOB);
+  }
+
+  for (size_t i = 0; i < n_stash; ++i) {
+    SINDEX[i] = SA_idx[i] + SB_idx[i];
+    SINPUT[i] = SA[i] + SB[i];
+  }
+
+  sanns::gc::Discard(SINPUT.get(), n_stash, discard_bits);
+  sanns::gc::BitonicTopk(SINPUT.get(), SINDEX.get(), n_stash, k, true);
+  for (size_t i = 0; i < n; ++i) {
+    INDEX[i] = A_idx[i] + B_idx[i];
+    INPUT[i] = A[i] + B[i];
+  }
+  for (size_t i = 0; i < k; ++i) {
+    INPUT[n + i] = SINPUT[i];
+    INDEX[n + i] = SINDEX[i];
+  }
+
+  sanns::gc::BitonicTopk(INPUT.get(), INDEX.get(), n + k, k, true);
+  for (size_t i = 0; i < k; i++) {
+    gc_id[i] = INDEX[i].reveal<int32_t>(BOB);
+    std::cout << gc_id[i] << ":" << INPUT[i].reveal<int32_t>(PUBLIC)
+              << std::endl;
   }
   return gc_id;
 }

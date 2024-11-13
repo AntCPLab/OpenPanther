@@ -32,6 +32,13 @@ std::vector<int32_t> TopK(size_t n, size_t k, size_t item_bits, size_t id_bits,
                           std::vector<uint32_t> &input,
                           std::vector<uint32_t> &index);
 
+std::vector<int32_t> EndTopK(size_t n, size_t k, size_t item_bits,
+                             size_t id_bits, size_t n_stash, size_t stash_bits,
+                             size_t discard_bits, std::vector<uint32_t> &input,
+                             std::vector<uint32_t> &index,
+                             std::vector<uint32_t> &stash,
+                             std::vector<uint32_t> &stash_id);
+
 template <typename T, typename D>
 void BitonicTopk(T *key, D *data, int n, int k, Bit acc);
 }  // namespace sanns::gc
