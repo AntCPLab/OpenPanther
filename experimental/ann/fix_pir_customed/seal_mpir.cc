@@ -298,7 +298,7 @@ std::vector<std::vector<uint32_t>> MultiQueryServer::DoMultiPirAnswer(
   const DurationMillis send_time = send_end - send_start;
 
   SPDLOG_INFO("PIR: Send time: {} ms", send_time.count());
-  SPDLOG_INFO("PIR: Query sent comm: {} KB", (s1 - s0) / 1024.0);
+  SPDLOG_INFO("PIR: Answer generate comm: {} KB", (s1 - s0) / 1024.0);
 
   const auto answer_time_end = std::chrono::system_clock::now();
   const DurationMillis time = answer_time_end - answer_time;

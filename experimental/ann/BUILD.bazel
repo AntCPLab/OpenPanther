@@ -65,8 +65,8 @@ spu_cc_test(
 )
 
 spu_cc_binary(
-    name = "panther_util_test",
-    srcs = ["panther_util_test.cc"],
+    name = "util_test",
+    srcs = ["util_test.cc"],
     data = ["dataset/dataset.txt", 
     "dataset/test.txt",
     "dataset/centrios.txt",
@@ -75,13 +75,43 @@ spu_cc_binary(
     "dataset/stash.txt"],
     copts = AES_COPT_FLAGS,
     deps = [
-        ":panther_util",
+        ":common",
         "//libspu/mpc/cheetah/rlwe:lwe",
         "@com_github_microsoft_seal//:seal",
         "//libspu/mpc/utils:simulate",
     ],
 )
 
+spu_cc_binary(
+    name = "panther_client",
+    srcs = ["panther_client.cc"],
+    copts = AES_COPT_FLAGS,
+    data = [
+    "dataset/test.txt",
+    "dataset/neighbors.txt"],
+    deps = [
+        ":common",
+        "//libspu/mpc/cheetah/rlwe:lwe",
+        "@com_github_microsoft_seal//:seal",
+        "//libspu/mpc/utils:simulate",
+    ],
+)
+
+spu_cc_binary(
+    name = "panther_server",
+    srcs = ["panther_server.cc"],
+    copts = AES_COPT_FLAGS,
+    data = ["dataset/dataset.txt", 
+    "dataset/centrios.txt",
+    "dataset/ptoc.txt",
+    "dataset/stash.txt"],
+    deps = [
+        ":common",
+        "//libspu/mpc/cheetah/rlwe:lwe",
+        "@com_github_microsoft_seal//:seal",
+        "//libspu/mpc/utils:simulate",
+    ],
+)
 spu_cc_binary(
     name = "panther_demo_test",
     srcs = ["panther_demo_test.cc"],
@@ -93,7 +123,7 @@ spu_cc_binary(
     "dataset/neighbors.txt",
     "dataset/stash.txt"],
     deps = [
-        ":panther_util",
+        ":common",
         "//libspu/mpc/cheetah/rlwe:lwe",
         "@com_github_microsoft_seal//:seal",
         "//libspu/mpc/utils:simulate",
@@ -144,9 +174,9 @@ spu_cc_library(
 )
 
 spu_cc_library(
-    name = "panther_util",
-    srcs = ["panther_util.cc"],
-    hdrs = ["panther_util.h"],
+    name = "common",
+    srcs = ["common.cc"],
+    hdrs = ["common.h"],
     copts = AES_COPT_FLAGS,
     deps = [
         ":dist_cmp",

@@ -185,11 +185,19 @@ uint32_t knns(vector<uint32_t> &q, vector<vector<uint32_t>> &ps,
     if (std::find(neighbors.begin(), neighbors.end(), v_id[i].second) !=
         neighbors.end())
       correct++;
-    // std::cout << v_id[i].second << std::endl;
+    uint32_t dis = 0;
+
+    size_t id = v_id[i].second;
+    for (size_t d = 0; d < 128; d++) {
+      dis += (q[d] - ps[id][d]) * (q[d] - ps[id][d]);
+    }
+    // std::cout << "Distance: " << dis;
+    // std::cout << " Id: " << v_id[i].second << " ";
   }
+  // std::cout << std::endl;
   return correct;
 }
-
+// Only for test accuracy
 int main() {
   std::srand(0);
   auto ps = read_data(1000000, 128, "dataset/dataset.txt");
@@ -204,8 +212,8 @@ int main() {
     auto r = knns(test_data[i], ps, cluster_data, ptoc, stash, neighbors[i]);
     all += knn;
     sum += r;
-    std::cout << i << ": " << sum << "/" << all << " = " << float(sum) / all
-              << std::endl;
+    SPDLOG_INFO("Accuracy With H2A {} : {}/{} = {}", i, sum, all,
+                float(sum) / all);
   }
   return 0;
 }

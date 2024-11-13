@@ -136,4 +136,5 @@ spu::NdArrayRef BitWidthChangeProtocol::ExtendComputeOpt(
   spu::mpc::ring_sub_(extend_result, wrap_bool);
   return extend_result;
 }
+
 }  // namespace sanns

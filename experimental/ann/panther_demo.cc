@@ -136,8 +136,6 @@ std::vector<uint32_t> GcTopk(spu::NdArrayRef& value, spu::NdArrayRef& index,
       memcpy(&input_value[0], &xval[now_bin], bin * sizeof(uint32_t));
       memcpy(&input_index[0], &xidx[now_bin], bin * sizeof(uint32_t));
       auto start = std::chrono::system_clock::now();
-      // std::cout << "bin: " << bin << " k: " << k << " bw_v: " << bw_value
-      // << "bw_id: " << bw_index << std::endl;
       auto topk_id =
           sanns::gc::TopK(bin, k, bw_value, bw_index, input_value, input_index);
 
@@ -224,15 +222,13 @@ std::vector<std::vector<uint32_t>> FixPirResult(
   int64_t num_slot = pir_result[0].size();
   // spu::NdArrayRef result;
   auto nd_inp = spu::mpc::ring_zeros(spu::FM32, {num_points * points_dim});
-  std::memcpy(&nd_inp.at(0), pir_result.data(),
-              query_size * num_slot * sizeof(uint32_t));
+  std::memcpy(&nd_inp.at(0), pir_result.data(), query_size * num_slot * 4);
   auto out = spu::mpc::cheetah::TiledDispatchOTFunc(
       ct.get(), nd_inp,
       [&](const spu::NdArrayRef& input,
           const std::shared_ptr<spu::mpc::cheetah::BasicOTProtocols>& base_ot) {
         BitWidthChangeProtocol prot(base_ot);
         auto trun_value = prot.TrunReduceCompute(input, logt, shift_bits);
-
         return prot.ExtendCompute(trun_value, logt - shift_bits,
                                   target_bits - logt + shift_bits);
       });
@@ -267,7 +263,7 @@ int main(int argc, char** argv) {
   // TODO(ljy): add command line operations
 
   llvm::cl::ParseCommandLineOptions(argc, argv);
-  yacl::set_num_threads(64);
+  yacl::set_num_threads(32);
 
   // Argmin:
   int64_t total_bin_number = 0;
@@ -315,8 +311,8 @@ int main(int argc, char** argv) {
   };
 
   // Bootstrap time can be amortized to many queries
-  // We let boot strap there, because we want the boot strap will produce too
-  // many OTs, which can't be used in once computation.
+  // We let bootstrap there, because the bootstrap will produce too many
+  // OTs, which can't be used in once computation.
 
   const auto boot_strap_s = std::chrono::system_clock::now();
   yacl::parallel_for(0, nworkers, [&](int64_t begin, int64_t end) {
