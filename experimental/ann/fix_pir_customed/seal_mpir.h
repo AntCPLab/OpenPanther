@@ -108,6 +108,8 @@ class MultiQueryServer : public MultiQuery {
   }
 
   void GenerateSimpleHash();
+  std::vector<std::vector<std::vector<seal::Ciphertext>>> ExpandQueryS(
+      const SealMultiPirQueryProto &query_proto);
 
   std::vector<size_t> &GetBin(size_t index) { return simple_hash_[index]; }
 

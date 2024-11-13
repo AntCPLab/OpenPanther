@@ -30,6 +30,7 @@
 
 namespace spu::seal_pir {
 
+const uint32_t use_size = 256;
 //
 // SealPIR paper:
 //   PIR with compressed queries and amortized query processing
@@ -211,8 +212,15 @@ class SealPirServer : public SealPir {
   std::vector<seal::Ciphertext> ExpandQuery(const seal::Ciphertext &encrypted,
                                             std::uint32_t m, size_t dim);
 
+  std::vector<std::vector<std::vector<seal::Ciphertext>>> ExpandMultiQuery(
+      const std::vector<std::vector<seal::Ciphertext>> &encrypted);
+
   std::vector<seal::Ciphertext> GenerateReplyCustomed(
       const std::vector<std::vector<seal::Ciphertext>> &query_ciphers,
+      std::vector<uint64_t> &random);
+
+  std::vector<seal::Ciphertext> GenerateReplyCustomedCompress(
+      std::vector<std::vector<seal::Ciphertext>> &expanded_query,
       std::vector<uint64_t> &random);
   // GenerateReply for query_ciphers
   std::vector<seal::Ciphertext> GenerateReply(
@@ -336,6 +344,11 @@ class SealPirClient : public SealPir {
   // PirQuery
   std::vector<uint32_t> DoPirQuery(
       const std::shared_ptr<yacl::link::Context> &link_ctx, size_t db_index);
+
+  std::vector<std::vector<seal::Ciphertext>> GenerateQuery(
+      std::vector<size_t> m_index);
+
+  std::vector<std::vector<size_t>> CompressQuery(std::vector<size_t> &q);
 
  private:
   std::unique_ptr<seal::KeyGenerator> keygen_[2];
