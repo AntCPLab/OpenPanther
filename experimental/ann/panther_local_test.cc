@@ -3,6 +3,8 @@
 
 #include "libspu/mpc/utils/simulate.h"
 
+// This file only used for debug
+
 using DurationMillis = std::chrono::duration<double, std::milli>;
 using namespace sanns;
 using namespace std;
@@ -69,7 +71,7 @@ size_t kWorldSize = 2;
 
 int main() {
   // parameters compute
-  yacl::set_num_threads(64);
+  yacl::set_num_threads(32);
   int64_t total_bin_number = 0;
   int64_t max_bin_size = 0;
   size_t batch_size = 0;
@@ -213,9 +215,9 @@ int main() {
     for (size_t j = 0; j < k; j++) {
       min_k[sum_k + j] = uint64_t(index[j].second);
 
-      if (i == 0) {
-        std::cout << min_k[j] << ":" << index[j].first << std::endl;
-      }
+      // if (i == 0) {
+      // std::cout << min_k[j] << ":" << index[j].first << std::endl;
+      // }
     }
     sum += k_c[i];
     sum_bin += l;
@@ -467,7 +469,7 @@ int main() {
                     less<pair<uint32_t, uint32_t>>());
   uint32_t correct = 0;
   for (size_t i = 0; i < topk_k; i++) {
-    std::cout << end_pair[i].second << ":" << end_pair[i].first << std::endl;
+    // std::cout << end_pair[i].second << ":" << end_pair[i].first << std::endl;
     if (std::find(neighbors[0].begin(), neighbors[0].end(),
                   end_pair[i].second) != neighbors[0].end())
       correct++;

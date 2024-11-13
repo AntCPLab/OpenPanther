@@ -29,23 +29,23 @@
 using namespace sanns;
 using DurationMillis = std::chrono::duration<double, std::milli>;
 
-const size_t pir_logt = 12;
+const size_t pir_logt = 13;
 const size_t pir_fixt = 2;
-const size_t logt = 24;
+const size_t logt = 23;
 const size_t cluster_shift = 5;
-const uint32_t dims = 128;
+const uint32_t dims = 96;
 const size_t N = 4096;
 const size_t dis_N = 2048;
 const size_t compare_radix = 5;
-const size_t max_cluster_points = 20;
-const std::vector<int64_t> k_c = {50810, 25603, 9968, 3227, 29326};
-const std::vector<int64_t> group_bin_number = {458, 270, 178, 84, 262};
-const std::vector<int64_t> group_k_number = {50, 31, 19, 13, 10};
-const size_t total_points_num = 1000000;
+const size_t max_cluster_points = 40;
+const std::vector<int64_t> k_c = {209727, 107417, 39132, 14424,
+                                  5796,   2394,   50649};
+const std::vector<int64_t> group_bin_number = {924, 458, 178, 93, 84, 84, 423};
+const std::vector<int64_t> group_k_number = {88, 46, 25, 13, 7, 7, 10};
+const size_t total_points_num = 10000000;
 const size_t topk_k = 10;
 const size_t pointer_dc_bits = 8;
 const size_t cluster_dc_bits = 5;
-
 llvm::cl::opt<std::string> Parties(
     "parties", llvm::cl::init("127.0.0.1:9530,127.0.0.1:9531"),
     llvm::cl::desc("server list, format: host1:port1[,host2:port2, ...]"));
@@ -432,7 +432,7 @@ int main(int argc, char** argv) {
 
     std::vector<uint64_t> pir_query(batch_size, 0);
     for (size_t i = 0; i < batch_size; i++) {
-      pir_query[i] = topk_id[i];
+      pir_query[i] = i;
       SPU_ENFORCE(pir_query[i] < cluster_num);
     }
 

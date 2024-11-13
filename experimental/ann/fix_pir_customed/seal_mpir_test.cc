@@ -188,8 +188,7 @@ TEST_P(SealMultiPirTest, WithH2A) {
 }
 
 INSTANTIATE_TEST_SUITE_P(Works_Instances, SealMultiPirTest,
-                         testing::Values(TestParams{100, 100000, 4096,
-                                                    4096})  //
+                         testing::Values(TestParams{25, 100000, 4096, 4096})  //
 );
 
 }  // namespace spu::seal_pir

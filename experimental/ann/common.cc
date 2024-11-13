@@ -6,6 +6,32 @@ using namespace spu;
 
 namespace sanns {
 
+std::vector<std::vector<uint32_t>> RandData(size_t n, size_t dims) {
+  SPDLOG_INFO("Generate random data: element number:{} element size:{}", n,
+              dims);
+  std::vector<std::vector<uint32_t>> db_data(n, std::vector<uint32_t>(dims));
+
+  for (uint64_t i = 0; i < n; i++) {
+    for (uint64_t j = 0; j < dims; j++) {
+      db_data[i][j] = rand() % 256;
+    }
+  }
+  return db_data;
+}
+
+std::vector<std::vector<uint32_t>> RandIdData(size_t n, size_t dims,
+                                              size_t range) {
+  SPDLOG_INFO("Generate fake ID: element number:{} element size:{}", n, dims);
+  std::vector<std::vector<uint32_t>> db_data(n, std::vector<uint32_t>(dims));
+
+  for (uint64_t i = 0; i < n; i++) {
+    for (uint64_t j = 0; j < dims; j++) {
+      db_data[i][j] = (i * dims + j) % range;
+    }
+  }
+  return db_data;
+}
+
 std::shared_ptr<yacl::link::Context> MakeLink(const std::string& parties,
                                               size_t rank) {
   yacl::link::ContextDesc lctx_desc;
@@ -367,13 +393,7 @@ std::vector<std::vector<uint32_t>> FixPirResultOpt(
         pir_result[i][m_i] =
             (pir_result[i][m_i] - xout[i * total_size + m_i]) & MASK;
       }
-      std::cout << xout[points_dim + 3] << std::endl;
-      std::cout << xout[points_dim + 4] << std::endl;
-      std::cout << xout[points_dim + 5] << std::endl;
     });
-    std::cout << pir_result[0][points_dim + 3] << std::endl;
-    std::cout << pir_result[0][points_dim + 4] << std::endl;
-    std::cout << pir_result[0][points_dim + 5] << std::endl;
   });
   return res;
 }
@@ -450,4 +470,35 @@ std::vector<int32_t> GcEndTopk(std::vector<uint32_t>& value,
   SPU_ENFORCE_EQ(topk_id.size(), k);
   return topk_id;
 };
+
+std::vector<std::vector<uint32_t>> FixPirResult(
+    std::vector<std::vector<uint32_t>>& pir_result, size_t logt,
+    size_t shift_bits, size_t target_bits, int64_t num_points,
+    int64_t points_dim, const std::shared_ptr<spu::KernelEvalContext>& ct) {
+  std::vector<std::vector<uint32_t>> result(num_points,
+                                            std::vector<uint32_t>(points_dim));
+  int64_t query_size = pir_result.size();
+  int64_t num_slot = pir_result[0].size();
+  // spu::NdArrayRef result;
+  auto nd_inp = spu::mpc::ring_zeros(spu::FM32, {num_points * points_dim});
+  for (int64_t i = 0; i < query_size; i++) {
+    std::memcpy(&nd_inp.at(i * num_slot), pir_result[i].data(), num_slot * 4);
+  }
+  auto out = spu::mpc::cheetah::TiledDispatchOTFunc(
+      ct.get(), nd_inp,
+      [&](const spu::NdArrayRef& input,
+          const std::shared_ptr<spu::mpc::cheetah::BasicOTProtocols>& base_ot) {
+        BitWidthChangeProtocol prot(base_ot);
+        auto trun_value = prot.TrunReduceCompute(input, logt, shift_bits);
+        spu::mpc::ring_bitmask_(trun_value, 0, logt - shift_bits);
+        return prot.ExtendComputeOpt(trun_value, logt - shift_bits,
+                                     target_bits - logt + shift_bits);
+      });
+
+  spu::mpc::ring_bitmask_(out, 0, target_bits);
+  spu::pforeach(0, num_points, [&](int64_t i) {
+    std::memcpy(result[i].data(), &out.at(i * points_dim), points_dim * 4);
+  });
+  return result;
+}
 }  // namespace sanns

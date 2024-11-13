@@ -28,7 +28,7 @@ const size_t message_size = 3;
 const size_t ele_size = (dims + 2 * message_size) * max_cluster_points;
 const uint32_t MASK = (1 << logt) - 1;
 
-auto test_data = read_data(1, 128, "dataset/test.txt");
+auto test_data = read_data(1, dims, "dataset/test.txt");
 // Only for check the correctness of result:
 auto neighbors = read_data(1, 10, "dataset/neighbors.txt");
 
@@ -42,7 +42,7 @@ llvm::cl::opt<uint32_t> EmpPort("emp_port", llvm::cl::init(7111),
                                 llvm::cl::desc("emp port"));
 
 int main(int argc, char** argv) {
-  yacl::set_num_threads(64);
+  yacl::set_num_threads(32);
   llvm::cl::ParseCommandLineOptions(argc, argv);
   auto hctx = MakeSPUContext(Parties.getValue(), PantherRank.getValue());
   auto kctx = std::make_shared<spu::KernelEvalContext>(hctx.get());

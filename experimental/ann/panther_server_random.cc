@@ -12,26 +12,27 @@ using namespace spu;
 const size_t pir_logt = 12;
 const size_t pir_fixt = 2;
 const size_t logt = 24;
+const size_t cluster_shift = 4;
+const uint32_t dims = 50;
 const size_t N = 4096;
 const size_t dis_N = 2048;
 const size_t compare_radix = 5;
-const size_t max_cluster_points = 20;
-const std::vector<int64_t> k_c = {50810, 25603, 9968, 3227, 29326};
-const std::vector<int64_t> group_bin_number = {458, 270, 178, 84, 262};
-const std::vector<int64_t> group_k_number = {50, 31, 19, 13, 10};
-const size_t total_points_num = 1000000;
-const uint32_t dims = 128;
+const size_t max_cluster_points = 25;
+const std::vector<int64_t> k_c = {41293, 24143, 9708, 3516, 1156, 8228};
+const std::vector<int64_t> group_bin_number = {364, 364, 178, 84, 84, 84};
+const std::vector<int64_t> group_k_number = {37, 37, 22, 10, 7, 10};
+const size_t total_points_num = 1048576;
 const size_t topk_k = 10;
-const size_t pointer_dc_bits = 8;
-const size_t cluster_dc_bits = 5;
+const size_t pointer_dc_bits = 6;
+const size_t cluster_dc_bits = 4;
 const size_t message_size = 3;
 const size_t ele_size = (dims + 2 * message_size) * max_cluster_points;
 const uint32_t MASK = (1 << logt) - 1;
 
-auto cluster_data = read_data(118934, 128, "dataset/centrios.txt");
-auto stash = read_data(29326, 1, "dataset/stash.txt");
-auto ps = read_data(1000000, 128, "dataset/dataset.txt");
-auto ptoc = read_data(89608, 20, "dataset/ptoc.txt");
+auto cluster_data = RandData(88044, dims);
+auto stash = RandIdData(8228, 1, total_points_num);
+auto ps = RandData(total_points_num, dims);
+auto ptoc = RandIdData(79816, max_cluster_points, total_points_num);
 
 llvm::cl::opt<std::string> Parties(
     "parties", llvm::cl::init("127.0.0.1:9530,127.0.0.1:9531"),

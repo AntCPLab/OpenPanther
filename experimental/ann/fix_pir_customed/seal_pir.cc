@@ -1566,11 +1566,11 @@ seal::Plaintext SealPirClient::DecodeReply(
       seal::Plaintext ptxt;
       decryptor_[recursion_level - i - 1]->decrypt(temp[j], ptxt);
 
-      // auto noise =
-      // decryptor_[recursion_level - i - 1]->invariant_noise_budget(temp[j]);
-
-      // SPDLOG_INFO("Client {} dims : reply noise budget = {}", i, noise);
-      // std::cout << "Decryption " << std::endl;
+      auto noise =
+          decryptor_[recursion_level - i - 1]->invariant_noise_budget(temp[j]);
+      //
+      SPDLOG_INFO("Client {} dims : reply noise budget = {}", i, noise);
+      std::cout << "Decryption " << std::endl;
 #ifdef DEC_DEBUG_
       // SPDLOG_INFO("Client: reply noise budget = {}",
       //  SPDLOG_INFO("ptxt to_string: {}", ptxt.to_string());

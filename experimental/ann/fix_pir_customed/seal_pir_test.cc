@@ -42,7 +42,7 @@ std::vector<uint8_t> GenerateDbData(TestParams params) {
 
   for (uint64_t i = 0; i < params.element_number; i++) {
     for (uint64_t j = 0; j < params.element_size; j++) {
-      auto val = gen() % 512;
+      auto val = gen() % 4096;
       db_raw_data[(i * params.element_size) + j] = val;
     }
   }
@@ -66,9 +66,9 @@ TEST_P(SealPirTest, Works) {
 
   SPDLOG_INFO(
       "N: {}, element size: {} coeffs , element_number: 2^{:.2f} = {}, "
-      "query_size(Indistinguishable degree) {}, logt: {}",
+      "query_size(Indistinguishable degree) {}",
       n, params.element_size, std::log2(params.element_number),
-      params.element_number, params.query_size, 24);
+      params.element_number, params.query_size);
 
   std::vector<uint8_t> db_data = GenerateDbData(params);
 
@@ -154,7 +154,7 @@ TEST_P(SealPirTest, Works) {
 //                     ));
 
 INSTANTIATE_TEST_SUITE_P(Works_Instances, SealPirTest,
-                         testing::Values(TestParams{4096, 4096, 20 * 128}));
+                         testing::Values(TestParams{4096, 60000, 20 * 128}));
 // small element_size to avoid out of memory
 
 }  // namespace spu::seal_pir

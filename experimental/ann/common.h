@@ -29,14 +29,20 @@
 
 namespace sanns {
 
+std::vector<std::vector<uint32_t>> RandData(size_t n, size_t dim);
+
+std::vector<std::vector<uint32_t>> RandIdData(size_t n, size_t dims,
+                                              size_t range);
 std::vector<std::vector<uint32_t>> read_data(size_t n, size_t dim,
                                              string filename);
 
 std::vector<std::vector<uint32_t>> RandClusterPoint(size_t point_number,
                                                     size_t dim);
 
-std::vector<uint32_t> RandQuery(size_t num_dims);
-
+std::vector<std::vector<uint32_t>> FixPirResult(
+    std::vector<std::vector<uint32_t>>& pir_result, size_t logt,
+    size_t shift_bits, size_t target_bits, int64_t num_points,
+    int64_t points_dim, const std::shared_ptr<spu::KernelEvalContext>& ct);
 std::vector<size_t> GcTopkCluster(spu::NdArrayRef& value,
                                   spu::NdArrayRef& index,
                                   const std::vector<int64_t>& g_bin_num,
@@ -63,7 +69,6 @@ std::vector<std::vector<uint32_t>> FixPirResult(
     std::vector<std::vector<uint32_t>>& pir_result, size_t logt,
     size_t shift_bits, size_t target_bits, int64_t num_points,
     int64_t points_dim, const std::shared_ptr<spu::KernelEvalContext>& ct);
-
 spu::NdArrayRef PrepareBatchArgmin(std::vector<uint32_t>& input,
                                    const std::vector<int64_t>& num_center,
                                    const std::vector<int64_t>& num_bin,
