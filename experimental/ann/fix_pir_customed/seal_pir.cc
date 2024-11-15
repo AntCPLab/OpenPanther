@@ -234,20 +234,15 @@ void SealPir::SetPolyModulusDegree(size_t degree) {
   enc_params_[0]->set_poly_modulus_degree(degree);
   enc_params_[0]->set_plain_modulus((1ULL << options_.logt));
   SPDLOG_INFO("Degree: {}", degree);
-  // enc_params_[0]->set_coeff_modulus(
-  // seal::CoeffModulus::Create(degree, {24, 36, 37}));
   enc_params_[0]->set_coeff_modulus(
-      seal::CoeffModulus::Create(degree, {44, 45, 45, 45}));
+      seal::CoeffModulus::Create(degree, {24, 36, 37}));
   enc_params_[1] =
       std::make_unique<seal::EncryptionParameters>(seal::scheme_type::bfv);
   enc_params_[1]->set_plain_modulus(
       (enc_params_[0]->coeff_modulus()[0].value()));
   enc_params_[1]->set_poly_modulus_degree(degree);
-  // enc_params_[1]->set_coeff_modulus(
-  // seal::CoeffModulus::Create(degree, {36, 36, 37}));
-
   enc_params_[1]->set_coeff_modulus(
-      seal::CoeffModulus::Create(degree, {45, 45, 45, 45}));
+      seal::CoeffModulus::Create(degree, {36, 36, 37}));
 
   context_[0] = std::make_unique<seal::SEALContext>(*(enc_params_[0]));
   context_[1] = std::make_unique<seal::SEALContext>(*(enc_params_[1]));
@@ -1564,11 +1559,10 @@ void SealPirServer::DoPirAnswer(
       DeSerializeQuery(query_proto);
   SPDLOG_INFO("Finished deserialize query");
   // SPDLOG_INFO("Start Generate Reply");
-  auto poly_degree = enc_params_[0]->poly_modulus_degree();
-  std::vector<uint64_t> random(poly_degree);
+  // auto poly_degree = enc_params_[0]->poly_modulus_degree();
+  // std::vector<uint64_t> random(poly_degree);
 
-  std::vector<seal::Ciphertext> reply_ciphers =
-      GenerateReply(query_ciphers, random);
+  std::vector<seal::Ciphertext> reply_ciphers = GenerateReply(query_ciphers);
   yacl::Buffer reply_buffer = SerializeCiphertexts(reply_ciphers);
   link_ctx->SendAsync(
       link_ctx->NextRank(), reply_buffer,
