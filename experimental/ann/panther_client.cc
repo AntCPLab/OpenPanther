@@ -28,6 +28,7 @@ const size_t message_size = 3;
 const size_t ele_size = (dims + 2 * message_size) * max_cluster_points;
 const uint32_t MASK = (1 << logt) - 1;
 
+// real input version
 auto test_data = read_data(1, dims, "dataset/test.txt");
 // Only for check the correctness of result:
 auto neighbors = read_data(1, 10, "dataset/neighbors.txt");

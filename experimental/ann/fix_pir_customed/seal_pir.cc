@@ -1558,9 +1558,6 @@ void SealPirServer::DoPirAnswer(
   std::vector<std::vector<seal::Ciphertext>> query_ciphers =
       DeSerializeQuery(query_proto);
   SPDLOG_INFO("Finished deserialize query");
-  // SPDLOG_INFO("Start Generate Reply");
-  // auto poly_degree = enc_params_[0]->poly_modulus_degree();
-  // std::vector<uint64_t> random(poly_degree);
 
   std::vector<seal::Ciphertext> reply_ciphers = GenerateReply(query_ciphers);
   yacl::Buffer reply_buffer = SerializeCiphertexts(reply_ciphers);

@@ -8,7 +8,7 @@ We only need to build the backend of SPU. It can reduce the dependencies of the 
 
 
 ## End-to-end test
-We provide a random input version for end-to-end evaluation and real input version. The random version is only used in performance test, it lets the user quickly reproduce the result without  dataset. We are finding a better way to provide the database and $k$-means model to make the real ipnut version easy to use. 
+We provide a random input version and real input version for end-to-end evaluation. The random version is only used in performance test, it lets the user quickly reproduce the result without  dataset.
 
 
 ### Build Random Version 
@@ -23,6 +23,8 @@ bazel build //experimental/ann:panther_server_random
 bazel run //experimental/ann:panther_client_random
 bazel run //experimental/ann:panther_server_random
 ```
+
+
 
 ## Benchmark test
 We provid adequate unit test in our repo.
@@ -50,3 +52,6 @@ bazel run //experimental/ann:bitwidth_change_test
 bazel run //experimental/ann:test_topk 1 1111 &
 bazel run //experimental/ann:test_topk 2 1111
 ```
+
+
+The real input version is `experimental/ann/panther_client` and `experimental/ann/panther_server`. We are finding a good way to provide the dataset and $k$-means model to make the real ipnut version easy to run. 
