@@ -386,7 +386,7 @@ std::vector<uint32_t> DisServer::H2A(std::vector<seal::Ciphertext> &ct,
   seal::Ciphertext zero_ct;
   std::vector<uint32_t> res(points_num);
   std::vector<uint32_t> out(degree_, 0);
-  size_t count = 0;
+  // size_t count = 0;
   for (size_t idx = 0; idx < ct.size(); idx++) {
     // TODO(ljy): preprocess generate more encrypted_zero
     seal::util::encrypt_zero_asymmetric(public_key_, *context_,
@@ -397,25 +397,25 @@ std::vector<uint32_t> DisServer::H2A(std::vector<seal::Ciphertext> &ct,
     spu::mpc::cheetah::ModulusSwtichInplace(ct[idx], 1, *context_);
 
     // impl_->UniformPoly(*context_, &rand, ct[idx].parms_id());
-    auto pid = ct[idx].parms_id() == seal::parms_id_zero
-                   ? context_->first_parms_id()
-                   : ct[idx].parms_id();
-    auto cntxt = context_->get_context_data(pid);
-    rand.parms_id() = seal::parms_id_zero;
-    rand.resize(degree_);
+    // auto pid = ct[idx].parms_id() == seal::parms_id_zero
+    //                ? context_->first_parms_id()
+    //                : ct[idx].parms_id();
+    // auto cntxt = context_->get_context_data(pid);
+    // rand.parms_id() = seal::parms_id_zero;
+    // rand.resize(degree_);
 
-    memcpy(rand.data(), ct[idx].data(0), degree_ * 8);
-    rand.parms_id() = cntxt->parms_id();
+    // memcpy(rand.data(), ct[idx].data(0), degree_ * 8);
+    // rand.parms_id() = cntxt->parms_id();
 
-    spu::mpc::cheetah::SubPlainInplace(ct[idx], rand, *context_);
+    // spu::mpc::cheetah::SubPlainInplace(ct[idx], rand, *context_);
 
-    DecodePolyToVector(rand, out);
+    // DecodePolyToVector(rand, out);
 
-    for (size_t coeff_i = 0; coeff_i < degree_ && count < points_num;
-         coeff_i++) {
-      res[count] = out[coeff_i];
-      count++;
-    }
+    // for (size_t coeff_i = 0; coeff_i < degree_ && count < points_num;
+    //      coeff_i++) {
+    //   res[count] = out[coeff_i];
+    //   count++;
+    // }
   }
   return res;
 }

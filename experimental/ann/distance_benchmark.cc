@@ -88,10 +88,10 @@ int main(int argc, char** argv) {
   // TODO(ljy): add command line operations
 
   llvm::cl::ParseCommandLineOptions(argc, argv);
-  yacl::set_num_threads(1);
+  yacl::set_num_threads(32);
   srand(0);
   const size_t logt = 24;
-  const size_t dis_N = 8192;
+  const size_t dis_N = 2048;
   const size_t dims = 128;
   const size_t cluster_num = 100000;
   // Argmin:

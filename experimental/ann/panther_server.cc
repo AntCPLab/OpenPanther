@@ -247,6 +247,14 @@ int main(int argc, char** argv) {
   SPDLOG_INFO("Total time: {} ms", total_time.count());
   auto e2e_gc_end = gc_io->counter;
   auto e2e_lx_end = lctx->GetStats()->sent_bytes.load();
+  auto distance_com = dis_cmp_c1 - dis_cmp_c0 + d2_end - d2_start;
+  auto pir_com = fix_c1 - fix_c0 + pir_c1 - pir_c0;
+  auto topk_com =
+      e2e_gc_end - e2e_gc + argmax_c1 - argmax_c0 + trun_c1 - trun_c0;
+
   SPDLOG_INFO("Total comm: {} MB",
               (e2e_gc_end - e2e_gc + e2e_lx_end - e2e_lx) / 1024.0 / 1024.0);
+  SPDLOG_INFO("Distance comm: {} MB", distance_com / 1024.0 / 1024.0);
+  SPDLOG_INFO("TopK comm: {} MB", topk_com / 1024.0 / 1024.0);
+  SPDLOG_INFO("Pir comm: {} MB", pir_com / 1024.0 / 1024.0);
 }

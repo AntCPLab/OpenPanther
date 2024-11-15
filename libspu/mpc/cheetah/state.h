@@ -118,7 +118,7 @@ class CheetahOTState : public State {
 
   mutable std::mutex lock_;
 
-  static constexpr size_t kMaxOTParallel = 64;
+  static constexpr size_t kMaxOTParallel = 32;
 
   size_t maximum_instances_;
   std::vector<ProtPtr> basic_ot_prot_;

@@ -8,19 +8,20 @@ We only need to build the backend of SPU. It can reduce the dependencies of the 
 
 
 ## End-to-end test
-We provide a random input version for end-to-end evaluation, which only used in performance analysis, it can let the user quickly reproduce the result without downloading the entire database.  We are finding a better way to provide the database to make it easy to use. 
+We provide a random input version for end-to-end evaluation and real input version. The random version is only used in performance test, it lets the user quickly reproduce the result without  dataset. We are finding a better way to provide the database and $k$-means model to make the real ipnut version easy to use. 
 
 
-### Build
-
+### Build Random Version 
 (The initial compilation may take a long time.)
+The default parameters are for the SIFT dataset.
 ```
-bazel build //experimental/ann:panther_demo
+bazel build //experimental/ann:panther_client_random
+bazel build //experimental/ann:panther_server_random
 ```
-### Execute 
+### Execute Random Version  
 ```
-bazel run  //experimental/ann:panther_demo & 
-bazel run  //experimental/ann:panther_demo -- --rank=1 
+bazel run //experimental/ann:panther_client_random
+bazel run //experimental/ann:panther_server_random
 ```
 
 ## Benchmark test
@@ -28,8 +29,8 @@ We provid adequate unit test in our repo.
 ```
 # Distance Compute
 bazel run //experimental/ann:dist_cmp_test
+bazel run //experimental/ann:ss_dist_cmp_test
 ```
-
 
 ```
 # Customed Batch PIR

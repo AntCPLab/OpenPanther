@@ -233,17 +233,21 @@ void SealPir::SetPolyModulusDegree(size_t degree) {
       std::make_unique<seal::EncryptionParameters>(seal::scheme_type::bfv);
   enc_params_[0]->set_poly_modulus_degree(degree);
   enc_params_[0]->set_plain_modulus((1ULL << options_.logt));
-  enc_params_[0]->set_coeff_modulus(
-      seal::CoeffModulus::Create(degree, {24, 36, 37}));
+  SPDLOG_INFO("Degree: {}", degree);
   // enc_params_[0]->set_coeff_modulus(
-  // seal::CoeffModulus::Create(degree, {44, 45, 45, 45}));
+  // seal::CoeffModulus::Create(degree, {24, 36, 37}));
+  enc_params_[0]->set_coeff_modulus(
+      seal::CoeffModulus::Create(degree, {44, 45, 45, 45}));
   enc_params_[1] =
       std::make_unique<seal::EncryptionParameters>(seal::scheme_type::bfv);
   enc_params_[1]->set_plain_modulus(
       (enc_params_[0]->coeff_modulus()[0].value()));
   enc_params_[1]->set_poly_modulus_degree(degree);
+  // enc_params_[1]->set_coeff_modulus(
+  // seal::CoeffModulus::Create(degree, {36, 36, 37}));
+
   enc_params_[1]->set_coeff_modulus(
-      seal::CoeffModulus::Create(degree, {36, 36, 37}));
+      seal::CoeffModulus::Create(degree, {45, 45, 45, 45}));
 
   context_[0] = std::make_unique<seal::SEALContext>(*(enc_params_[0]));
   context_[1] = std::make_unique<seal::SEALContext>(*(enc_params_[1]));
@@ -744,21 +748,25 @@ std::vector<seal::Ciphertext> SealPirServer::ExpandQuery(
   }
 
   vector<seal::Ciphertext> temp;
+
   temp.push_back(encrypted);
+  temp.resize(m);
   seal::Ciphertext tempctxt;
   seal::Ciphertext tempctxt_rotated;
   seal::Ciphertext tempctxt_shifted;
   seal::Ciphertext tempctxt_rotatedshifted;
+  uint32_t tmp_size = 1;
 
+  vector<seal::Ciphertext> newtemp(m);
   for (uint32_t i = 0; i < logm - 1; i++) {
-    vector<seal::Ciphertext> newtemp(temp.size() << 1);
+    // vector<seal::Ciphertext> newtemp(tmp_size << 1);
     // temp[a] = (j0 = a (mod 2**i) ? ) : Enc(x^{j0 - a}) else Enc(0).  With
     // some scaling....
     // & (n-1) to avoid debug mode Runtime error
     int index_raw = (n << 1) - (1 << i);
     int index = (index_raw * galois_elts[i]) % (n << 1);
 
-    for (uint32_t a = 0; a < temp.size(); a++) {
+    for (uint32_t a = 0; a < tmp_size; a++) {
       evaluator_[dim]->apply_galois(temp[a], galois_elts[i], galkey,
                                     tempctxt_rotated);
       evaluator_[dim]->add(temp[a], tempctxt_rotated, newtemp[a]);
@@ -768,15 +776,18 @@ std::vector<seal::Ciphertext> SealPirServer::ExpandQuery(
                           dim);
 
       evaluator_[dim]->add(tempctxt_shifted, tempctxt_rotatedshifted,
-                           newtemp[a + temp.size()]);
+                           newtemp[a + tmp_size]);
     }
     temp.swap(newtemp);
+    tmp_size = tmp_size << 1;
   }
+  // std::cout << "test" << std::endl;
+  // newtemp.resize(m);
   // Last step of the loop
-  vector<seal::Ciphertext> newtemp(m);
+  // vector<seal::Ciphertext> newtemp(m;
   int index_raw = (n << 1) - (1 << (logm - 1));
   int index = (index_raw * galois_elts[logm - 1]) % (n << 1);
-  for (uint32_t a = 0; a < temp.size() && a < m; a++) {
+  for (uint32_t a = 0; a < tmp_size; a++) {
     if (a >= (m - (1 << (logm - 1)))) {  // corner case.
       evaluator_[dim]->multiply_plain(
           temp[a], two,
@@ -785,11 +796,13 @@ std::vector<seal::Ciphertext> SealPirServer::ExpandQuery(
       evaluator_[dim]->apply_galois(temp[a], galois_elts[logm - 1], galkey,
                                     tempctxt_rotated);
       evaluator_[dim]->add(temp[a], tempctxt_rotated, newtemp[a]);
-      multiply_power_of_X(temp[a], tempctxt_shifted, index_raw, dim);
-      multiply_power_of_X(tempctxt_rotated, tempctxt_rotatedshifted, index,
-                          dim);
-      evaluator_[dim]->add(tempctxt_shifted, tempctxt_rotatedshifted,
-                           newtemp[a + temp.size()]);
+      if ((a + tmp_size) < m) {
+        multiply_power_of_X(temp[a], tempctxt_shifted, index_raw, dim);
+        multiply_power_of_X(tempctxt_rotated, tempctxt_rotatedshifted, index,
+                            dim);
+        evaluator_[dim]->add(tempctxt_shifted, tempctxt_rotatedshifted,
+                             newtemp[a + tmp_size]);
+      }
     }
   }
 
@@ -1551,10 +1564,11 @@ void SealPirServer::DoPirAnswer(
       DeSerializeQuery(query_proto);
   SPDLOG_INFO("Finished deserialize query");
   // SPDLOG_INFO("Start Generate Reply");
-  // auto poly_degree = enc_params_[0]->poly_modulus_degree();
-  // std::vector<uint64_t> random(poly_degree);
+  auto poly_degree = enc_params_[0]->poly_modulus_degree();
+  std::vector<uint64_t> random(poly_degree);
 
-  std::vector<seal::Ciphertext> reply_ciphers = GenerateReply(query_ciphers);
+  std::vector<seal::Ciphertext> reply_ciphers =
+      GenerateReply(query_ciphers, random);
   yacl::Buffer reply_buffer = SerializeCiphertexts(reply_ciphers);
   link_ctx->SendAsync(
       link_ctx->NextRank(), reply_buffer,

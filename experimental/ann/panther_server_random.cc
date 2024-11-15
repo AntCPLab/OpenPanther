@@ -12,27 +12,26 @@ using namespace spu;
 const size_t pir_logt = 12;
 const size_t pir_fixt = 2;
 const size_t logt = 24;
-const size_t cluster_shift = 4;
-const uint32_t dims = 50;
 const size_t N = 4096;
 const size_t dis_N = 2048;
 const size_t compare_radix = 5;
-const size_t max_cluster_points = 25;
-const std::vector<int64_t> k_c = {41293, 24143, 9708, 3516, 1156, 8228};
-const std::vector<int64_t> group_bin_number = {364, 364, 178, 84, 84, 84};
-const std::vector<int64_t> group_k_number = {37, 37, 22, 10, 7, 10};
-const size_t total_points_num = 1048576;
+const size_t max_cluster_points = 20;
+const std::vector<int64_t> k_c = {50810, 25603, 9968, 3227, 29326};
+const std::vector<int64_t> group_bin_number = {458, 270, 178, 84, 262};
+const std::vector<int64_t> group_k_number = {50, 31, 19, 13, 10};
+const size_t total_points_num = 1000000;
+const uint32_t dims = 128;
 const size_t topk_k = 10;
-const size_t pointer_dc_bits = 6;
-const size_t cluster_dc_bits = 4;
+const size_t pointer_dc_bits = 8;
+const size_t cluster_dc_bits = 5;
 const size_t message_size = 3;
 const size_t ele_size = (dims + 2 * message_size) * max_cluster_points;
 const uint32_t MASK = (1 << logt) - 1;
 
-auto cluster_data = RandData(88044, dims);
-auto stash = RandIdData(8228, 1, total_points_num);
-auto ps = RandData(total_points_num, dims);
-auto ptoc = RandIdData(79816, max_cluster_points, total_points_num);
+auto cluster_data = read_data(118934, 128, "dataset/centrios.txt");
+auto stash = read_data(29326, 1, "dataset/stash.txt");
+auto ps = read_data(1000000, 128, "dataset/dataset.txt");
+auto ptoc = read_data(89608, 20, "dataset/ptoc.txt");
 
 llvm::cl::opt<std::string> Parties(
     "parties", llvm::cl::init("127.0.0.1:9530,127.0.0.1:9531"),
@@ -107,10 +106,6 @@ int main(int argc, char** argv) {
   auto dis_cmp_r1 = lctx->GetStats()->sent_actions.load();
   auto dis_cmp_c1 = lctx->GetStats()->sent_bytes.load();
   const DurationMillis dis_cmp_time = distance_cmp_e - distance_cmp_s;
-  SPDLOG_INFO("Distance cmp time: {} ms", dis_cmp_time.count());
-  SPDLOG_INFO("Distance server sent actions: {}, Distance comm: {} MB",
-              dis_cmp_r1 - dis_cmp_r0,
-              (dis_cmp_c1 - dis_cmp_c0) / 1024.0 / 1024.0);
   for (size_t i = 0; i < response.size(); i++) {
     uint32_t p_2 = 0;
     for (size_t j = 0; j < dims; j++) {
@@ -118,6 +113,10 @@ int main(int argc, char** argv) {
     }
     response[i] = (p_2 - 2 * response[i]) & MASK;
   }
+  SPDLOG_INFO("Distance cmp time: {} ms", dis_cmp_time.count());
+  SPDLOG_INFO("Distance server sent actions: {}, Distance comm: {} MB",
+              dis_cmp_r1 - dis_cmp_r0,
+              (dis_cmp_c1 - dis_cmp_c0) / 1024.0 / 1024.0);
 
   // Step(2): Argmin in each bin:
   int64_t total_bin_number = 0;
@@ -203,16 +202,17 @@ int main(int argc, char** argv) {
   auto d2_end = lctx->GetStats()->sent_bytes.load();
   SPDLOG_INFO("Point_distance comm: {} MB",
               (d2_end - d2_start) / 1024.0 / 1024.0);
-  auto dis_e = std::chrono::system_clock::now();
-  const DurationMillis dis2_time = dis_e - pir_e;
-  SPDLOG_INFO("Point_distance time: {} ms", dis2_time.count());
-
   std::vector<uint32_t> dis(p.size());
   for (size_t i = 0; i < p.size(); i++) {
     dis[i] = (p_2[i] - 2 * dis_ser[i] + 2 * fix_pir_s[i][0]) & MASK;
   }
+  auto dis_e = std::chrono::system_clock::now();
+  const DurationMillis dis2_time = dis_e - pir_e;
+  SPDLOG_INFO("Point_distance time: {} ms", dis2_time.count());
 
   // Step(6): End topk computation
+
+  auto end_topk_s = std::chrono::system_clock::now();
   size_t trun_c0 = lctx->GetStats()->sent_bytes.load();
   auto trun_dis = Truncate(dis, logt, pointer_dc_bits, kctx);
   size_t trun_c1 = lctx->GetStats()->sent_bytes.load();
@@ -227,7 +227,6 @@ int main(int argc, char** argv) {
   size_t id_bw = std::ceil(std::log2(total_points_num));
 
   auto end_topk0 = gc_io->counter;
-  auto end_topk_s = std::chrono::system_clock::now();
   gc_io->flush();
   gc_io->sync();
   GcEndTopk(trun_dis, pid, min_value, min_index, logt - pointer_dc_bits, id_bw,
@@ -248,6 +247,14 @@ int main(int argc, char** argv) {
   SPDLOG_INFO("Total time: {} ms", total_time.count());
   auto e2e_gc_end = gc_io->counter;
   auto e2e_lx_end = lctx->GetStats()->sent_bytes.load();
+  auto distance_com = dis_cmp_c1 - dis_cmp_c0 + d2_end - d2_start;
+  auto pir_com = fix_c1 - fix_c0 + pir_c1 - pir_c0;
+  auto topk_com =
+      e2e_gc_end - e2e_gc + argmax_c1 - argmax_c0 + trun_c1 - trun_c0;
+
   SPDLOG_INFO("Total comm: {} MB",
               (e2e_gc_end - e2e_gc + e2e_lx_end - e2e_lx) / 1024.0 / 1024.0);
+  SPDLOG_INFO("Distance comm: {} MB", distance_com / 1024.0 / 1024.0);
+  SPDLOG_INFO("TopK comm: {} MB", topk_com / 1024.0 / 1024.0);
+  SPDLOG_INFO("Pir comm: {} MB", pir_com / 1024.0 / 1024.0);
 }

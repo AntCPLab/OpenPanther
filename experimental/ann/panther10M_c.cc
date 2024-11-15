@@ -9,28 +9,32 @@ using namespace std;
 using namespace spu;
 
 // hyparameters:
-const size_t pir_logt = 12;
+
+const size_t pir_logt = 13;
 const size_t pir_fixt = 2;
-const size_t logt = 24;
+const size_t logt = 23;
+const size_t compare_radix = 5;
+const uint32_t dims = 96;
 const size_t N = 4096;
 const size_t dis_N = 2048;
-const size_t compare_radix = 5;
-const size_t max_cluster_points = 20;
-const std::vector<int64_t> k_c = {50810, 25603, 9968, 3227, 29326};
-const std::vector<int64_t> group_bin_number = {458, 270, 178, 84, 262};
-const std::vector<int64_t> group_k_number = {50, 31, 19, 13, 10};
-const size_t total_points_num = 1000000;
-const uint32_t dims = 128;
+const size_t max_cluster_points = 48;
+const size_t fake_cluster_points = 40;
+const std::vector<int64_t> k_c = {209727, 107417, 39132, 14424,
+                                  5796,   2394,   50649};
+const std::vector<int64_t> group_bin_number = {924, 458, 178, 93, 84, 84, 423};
+const std::vector<int64_t> group_k_number = {88, 46, 25, 13, 7, 7, 10};
+const size_t total_points_num = 10000000;
 const size_t topk_k = 10;
 const size_t pointer_dc_bits = 8;
 const size_t cluster_dc_bits = 5;
 const size_t message_size = 3;
+const size_t fake_size = (dims + 2 * message_size) * fake_cluster_points;
 const size_t ele_size = (dims + 2 * message_size) * max_cluster_points;
 const uint32_t MASK = (1 << logt) - 1;
 
-auto test_data = read_data(1, dims, "dataset/test.txt");
+auto test_data = RandData(1, dims);
 // Only for check the correctness of result:
-auto neighbors = read_data(1, 10, "dataset/neighbors.txt");
+auto neighbors = RandData(1, 10);
 
 llvm::cl::opt<std::string> Parties(
     "parties", llvm::cl::init("127.0.0.1:9530,127.0.0.1:9531"),
@@ -77,7 +81,7 @@ int main(int argc, char** argv) {
   size_t stash_size = k_c[k_c.size() - 1];
   size_t first_ps_size = cluster_num + stash_size;
   auto mpir_client =
-      PrepareMpirClient(batch_size, cluster_num, ele_size, lctx, N, pir_logt);
+      PrepareMpirClient(batch_size, cluster_num, fake_size, lctx, N, pir_logt);
 
   // Init distance HE key:
   DisClient dis_client(dis_N, logt, lctx);
@@ -108,15 +112,15 @@ int main(int argc, char** argv) {
 
   auto dis_cmp_r1 = lctx->GetStats()->sent_actions.load();
   auto dis_cmp_c1 = lctx->GetStats()->sent_bytes.load();
+  for (size_t i = 0; i < dis_reply.size(); i++) {
+    dis_reply[i] = (q_2 - 2 * dis_reply[i]) & MASK;
+  }
   auto distance_cmp_e = std::chrono::system_clock::now();
   const DurationMillis dis_cmp_time = distance_cmp_e - distance_cmp_s;
   SPDLOG_INFO("Distance cmp time: {} ms", dis_cmp_time.count());
   SPDLOG_INFO("Distance client sent actions: {}, Distance comm: {} MB",
               dis_cmp_r1 - dis_cmp_r0,
               (dis_cmp_c1 - dis_cmp_c0) / 1024.0 / 1024.0);
-  for (size_t i = 0; i < dis_reply.size(); i++) {
-    dis_reply[i] = (q_2 - 2 * dis_reply[i]) & MASK;
-  }
 
   // Step(2): Argmin in each bin:
   int64_t total_bin_number = 0;
@@ -169,6 +173,7 @@ int main(int argc, char** argv) {
   // Step(4): Multi-query PIR
   size_t pir_c0 = lctx->GetStats()->sent_bytes.load();
   auto pir_c = mpir_client.DoMultiPirQuery(lctx, topk_id_c, true);
+  auto pir_size = pir_c.size();
   size_t pir_c1 = lctx->GetStats()->sent_bytes.load();
 
   SPDLOG_INFO("PIR client query comm: {} MB",
@@ -176,9 +181,17 @@ int main(int argc, char** argv) {
 
   // Step(4.2 (optional)): Fix PIR point result
   size_t fix_c0 = lctx->GetStats()->sent_bytes.load();
+
+  FixPirResult(pir_c, pir_logt, pir_fixt, logt,
+               pir_c.size() * fake_cluster_points, dims + 2 * message_size,
+               kctx);
   auto fix_pir_c = FixPirResultOpt(
-      pir_c, pir_logt, pir_fixt, logt, pir_c.size() * max_cluster_points,
+      pir_c, pir_logt, pir_fixt, logt, pir_c.size() * fake_cluster_points,
       dims + 2 * message_size, dims, rank, kctx, test_data[0]);
+  // fix_pir_c = FixPirResultOpt(
+  // pir_c, pir_logt, pir_fixt, logt, pir_c.size() * fake_cluster_points,
+  // dims + 2 * message_size, dims, rank, kctx, test_data[0]);
+
   size_t fix_c1 = lctx->GetStats()->sent_bytes.load();
   SPDLOG_INFO("Fix pir comm: {} MB", (fix_c1 - fix_c0) / 1024.0 / 1024.0);
   auto pir_e = std::chrono::system_clock::now();
@@ -198,10 +211,6 @@ int main(int argc, char** argv) {
   auto d2_end = lctx->GetStats()->sent_bytes.load();
   SPDLOG_INFO("Point_distance comm: {} MB",
               (d2_end - d2_start) / 1024.0 / 1024.0);
-  auto dis_e = std::chrono::system_clock::now();
-  const DurationMillis dis2_time = dis_e - pir_e;
-  SPDLOG_INFO("Point_distance time: {} ms", dis2_time.count());
-
   std::vector<uint32_t> dis(p.size());
   for (size_t i = 0; i < p.size(); i++) {
     uint32_t ip0 = 0;
@@ -211,8 +220,12 @@ int main(int argc, char** argv) {
     dis[i] =
         (q_2 + p_2[i] - 2 * ip0 - 2 * dis_c[i] + 2 * fix_pir_c[i][0]) & MASK;
   }
+  auto dis_e = std::chrono::system_clock::now();
+  const DurationMillis dis2_time = dis_e - pir_e;
+  SPDLOG_INFO("Point_distance time: {} ms", dis2_time.count());
 
   // Step(6): End topk computation
+  auto end_topk_s = std::chrono::system_clock::now();
   size_t trun_c0 = lctx->GetStats()->sent_bytes.load();
   auto trun_dis = Truncate(dis, logt, pointer_dc_bits, kctx);
   size_t trun_c1 = lctx->GetStats()->sent_bytes.load();
@@ -227,12 +240,14 @@ int main(int argc, char** argv) {
   size_t id_bw = std::ceil(std::log2(total_points_num));
 
   auto end_topk0 = gc_io->counter;
-  auto end_topk_s = std::chrono::system_clock::now();
   gc_io->flush();
   gc_io->sync();
+
+  std::vector<uint32_t> random_dis(max_cluster_points * pir_size, 1);
+  std::vector<uint32_t> random_id(max_cluster_points * pir_size, 1);
   auto id =
-      GcEndTopk(trun_dis, pid, min_value, min_index, logt - pointer_dc_bits,
-                id_bw, stash_bw, discard_bw, sum_bin,
+      GcEndTopk(random_dis, random_id, min_value, min_index,
+                logt - pointer_dc_bits, id_bw, stash_bw, discard_bw, sum_bin,
                 group_bin_number[group_bin_number.size() - 1], topk_k, gc_io);
   auto end_topk_e = std::chrono::system_clock::now();
   gc_io->flush();
@@ -251,6 +266,7 @@ int main(int argc, char** argv) {
   auto e2e_lx_end = lctx->GetStats()->sent_bytes.load();
   auto topk_time =
       end_topk_time.count() + argmax_time.count() + gc_topk_time.count();
+
   auto distance_time = dis_cmp_time.count() + dis2_time.count();
   SPDLOG_INFO("Distance time: {} ms", distance_time);
   SPDLOG_INFO("Topk time: {} ms", topk_time);
@@ -266,18 +282,17 @@ int main(int argc, char** argv) {
   SPDLOG_INFO("Distance comm: {} MB", distance_com / 1024.0 / 1024.0);
   SPDLOG_INFO("TopK comm: {} MB", topk_com / 1024.0 / 1024.0);
   SPDLOG_INFO("Pir comm: {} MB", pir_com / 1024.0 / 1024.0);
-
   // Print result ID
-  uint32_t correct = 0;
-  SPDLOG_INFO("{}-NNs IDs: ", topk_k);
-  std::cout << "(";
-  for (size_t i = 0; i < topk_k; i++) {
-    std::cout << id[i] << " ";
-    if (std::find(neighbors[0].begin(), neighbors[0].end(), id[i]) !=
-        neighbors[0].end())
-      correct++;
-  }
-  std::cout << ")" << std::endl;
-  SPDLOG_INFO("Accuracy: {}/{} = {}", correct, topk_k,
-              (double)correct / topk_k);
+  // uint32_t correct = 0;
+  // SPDLOG_INFO("{}-NNs IDs: ", topk_k);
+  // std::cout << "(";
+  // for (size_t i = 0; i < topk_k; i++) {
+  //   std::cout << id[i] << " ";
+  //   if (std::find(neighbors[0].begin(), neighbors[0].end(), id[i]) !=
+  //       neighbors[0].end())
+  //     correct++;
+  // }
+  // std::cout << ")" << std::endl;
+  // SPDLOG_INFO("Accuracy: {}/{} = {}", correct, topk_k,
+  //             (double)correct / topk_k);
 }

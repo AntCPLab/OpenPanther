@@ -110,6 +110,18 @@ spu_cc_binary(
 )
 
 spu_cc_binary(
+    name = "panther10M_c",
+    srcs = ["panther10M_c.cc"],
+    copts = AES_COPT_FLAGS,
+    deps = [
+        ":common",
+        "//libspu/mpc/cheetah/rlwe:lwe",
+        "@com_github_microsoft_seal//:seal",
+        "//libspu/mpc/utils:simulate",
+    ],
+)
+
+spu_cc_binary(
     name = "panther_server",
     srcs = ["panther_server.cc"],
     copts = AES_COPT_FLAGS,
@@ -117,6 +129,18 @@ spu_cc_binary(
     "dataset/centrios.txt",
     "dataset/ptoc.txt",
     "dataset/stash.txt"],
+    deps = [
+        ":common",
+        "//libspu/mpc/cheetah/rlwe:lwe",
+        "@com_github_microsoft_seal//:seal",
+        "//libspu/mpc/utils:simulate",
+    ],
+)
+
+spu_cc_binary(
+    name = "panther10M_s",
+    srcs = ["panther10M_s.cc"],
+    copts = AES_COPT_FLAGS,
     deps = [
         ":common",
         "//libspu/mpc/cheetah/rlwe:lwe",
