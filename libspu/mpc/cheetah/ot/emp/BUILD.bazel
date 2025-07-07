@@ -24,6 +24,7 @@ spu_cc_library(
         "emp_util.h",
         "ferret.h",
         "mitccrh_exp.h",
+        # "util.h",
     ],
     copts = AES_COPT_FLAGS + ["-Wno-ignored-attributes"],
     deps = [

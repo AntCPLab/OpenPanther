@@ -13,19 +13,23 @@ class DisClient {
 
   std::vector<seal::Ciphertext> GenerateQuery(std::vector<uint32_t> &q);
 
-  spu::NdArrayRef RecvReply(spu::Shape r_padding_shape, size_t num_points);
+  // Get distance result
   std::vector<uint32_t> RecvReply(size_t num_points);
-  spu::NdArrayRef DecodeReply(std::vector<seal::Ciphertext> &reply,
-                              spu::Shape r_padding_shape, size_t num_points);
 
-  std::vector<uint32_t> DecodeReply(std::vector<seal::Ciphertext> &reply,
-                                    size_t num_points);
+  // Get shared distance result
+  std::vector<uint32_t> RecvReplySS(size_t num_points);
 
-  // Only for test;
+  spu::NdArrayRef RecvReplySS(spu::Shape r_padding_shape, size_t num_points);
+
   inline seal::PublicKey GetPublicKey() { return public_key_; };
   void SendPublicKey();
 
  private:
+  std::vector<uint32_t> DecodeReply(std::vector<seal::Ciphertext> &reply,
+                                    size_t num_points, bool is_ss);
+
+  spu::NdArrayRef ReshapeReply(std::vector<uint32_t> &response,
+                               spu::Shape padding_shape);
   std::shared_ptr<yacl::link::Context> conn_;
   size_t degree_;
   seal::PublicKey public_key_;
@@ -42,34 +46,42 @@ class DisServer {
   DisServer(size_t degree, size_t logt,
             const std::shared_ptr<yacl::link::Context> &conn);
 
-  DoDistanceCmp(std::vector<std::vector<uint32_t>> &points,
-                std::vector<seal::Ciphertext> &q);
+  std::vector<seal::Ciphertext> RecvQuery(size_t query_size);
 
-  spu::NdArrayRef DoDistanceCmpWithH2A(
+  // Return the result of the distance computation
+  void DoDistanceCmp(std::vector<std::vector<uint32_t>> &points,
+                     std::vector<seal::Ciphertext> &q);
+
+  // Return the secret-shared result of the distance computation using H2A
+  std::vector<uint32_t> DoDistanceCmpWithH2A(
       std::vector<std::vector<uint32_t>> &points,
-      std::vector<seal::Ciphertext> &q, spu::Shape shape);
+      std::vector<seal::Ciphertext> &q);
 
-  std::vector<seal::Plaintext> PrePoints(
-      std::vector<std::vector<uint32_t>> &points);
+  // Return the secret-shared result of the distance computation using H2A with
+  // specific shape
+  spu::NdArrayRef DoDistanceCmpWithH2A(
+      spu::Shape padding_shape, std::vector<std::vector<uint32_t>> &points,
+      std::vector<seal::Ciphertext> &q);
 
-  spu::NdArrayRef H2A(std::vector<seal::Ciphertext> &ct, spu::Shape shape);
-
-  std::vector<uint32_t> H2A(std::vector<seal::Ciphertext> &ct,
-                            uint32_t points_num);
+  // Only for local test
   inline void SetPublicKey(seal::PublicKey pub_key) { public_key_ = pub_key; };
 
   void RecvPublicKey();
 
-  std::vector<seal::Ciphertext> RecvQuery(size_t query_size);
-
  private:
   void DecodePolyToVector(const seal::Plaintext &poly,
                           std::vector<uint32_t> &out);
+  std::vector<seal::Plaintext> EncodePointsToPoly(
+      std::vector<std::vector<uint32_t>> &points);
+
+  std::vector<uint32_t> H2A(std::vector<seal::Ciphertext> &ct,
+                            uint32_t num_points);
+
+  spu::NdArrayRef ReshapeVector(std::vector<uint32_t> &response,
+                                spu::Shape padding_shape);
+  size_t degree_;
   uint32_t logt_;
   std::shared_ptr<yacl::link::Context> conn_;
-  size_t degree_;
-  struct Impl;
-  std::shared_ptr<Impl> impl_;
   seal::PublicKey public_key_;
   std::unique_ptr<seal::SEALContext> context_;
   std::unique_ptr<seal::Evaluator> evaluator_;

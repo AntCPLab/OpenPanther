@@ -69,8 +69,8 @@ TEST_P(DistanceCmpTest, distance_pp) {
     for (size_t point_i = 0; point_i < points_dim; point_i++) {
       exp += q[point_i] * ps[i][point_i];
     }
-    [[maybe_unused]] auto get = (response[i] + vec_reply[i]) & MASK;
-    EXPECT_NEAR(get, exp, 1);
+    auto get = vec_reply[i] & MASK;
+    EXPECT_EQ(get, exp);
   }
 }
 
@@ -126,7 +126,7 @@ TEST_P(DistanceCmpTest, distanc_ps) {
   SPDLOG_INFO("Comm: {} MB", (c1 - c0) / 1024.0 / 1024.0);
 
   auto cs0 = ctxs[1]->GetStats()->sent_bytes.load();
-  auto response = server.DoDistanceCmp(rp1, query);
+  server.DoDistanceCmp(rp1, query);
   // TODO: H2A
   auto vec_reply = client.RecvReply(num_points);
 
@@ -146,12 +146,12 @@ TEST_P(DistanceCmpTest, distanc_ps) {
       q_2 += q[point_i] * q[point_i];
       qpr0 += q[point_i] * rp0[i][point_i];
     }
-    auto get = (response[i] + vec_reply[i]) & MASK;
+    auto get = (vec_reply[i]) & MASK;
     qpr0 &= MASK;
     exp &= MASK;
     auto cmp_dis = (p_2 + q_2 - 2 * get - 2 * qpr0) & MASK;
-    EXPECT_NEAR(get, exp, 1);
-    EXPECT_NEAR(cmp_dis, distance, 2);
+    EXPECT_EQ(get, exp);
+    EXPECT_EQ(cmp_dis, distance);
   }
 }
 
@@ -200,8 +200,8 @@ TEST_P(DistanceCmpTest, distance_pp_with_H2A) {
 
   // Recv Response: distances between p and each q_i
   auto cs0 = ctxs[1]->GetStats()->sent_bytes.load();
-  server.DoDistanceCmp(ps, query);
-  auto vec_reply = client.RecvReply(num_points);
+  auto response = server.DoDistanceCmpWithH2A(ps, query);
+  auto vec_reply = client.RecvReplySS(num_points);
   auto cs1 = ctxs[1]->GetStats()->sent_bytes.load();
   SPDLOG_INFO("Response Comm: {:.2f} MB", (cs1 - cs0) / 1024.0 / 1024.0);
 
@@ -217,7 +217,6 @@ TEST_P(DistanceCmpTest, distance_pp_with_H2A) {
   }
 }
 
-// TEST_P()
 TEST_P(DistanceCmpTest, distanc_ps_with_H2A) {
   auto parms = GetParam();
   size_t num_points = parms.first;
@@ -262,9 +261,8 @@ TEST_P(DistanceCmpTest, distanc_ps_with_H2A) {
   SPDLOG_INFO("Comm: {} MB", (c1 - c0) / 1024.0 / 1024.0);
 
   auto cs0 = ctxs[1]->GetStats()->sent_bytes.load();
-  auto response = server.DoDistanceCmp(rp1, query);
-  // TODO: H2A
-  auto vec_reply = client.RecvReply(num_points);
+  auto response = server.DoDistanceCmpWithH2A(rp1, query);
+  auto vec_reply = client.RecvReplySS(num_points);
 
   auto cs1 = ctxs[1]->GetStats()->sent_bytes.load();
   SPDLOG_INFO("Response Comm: {} MB", (cs1 - cs0) / 1024.0 / 1024.0);
