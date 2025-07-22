@@ -72,6 +72,12 @@ class MITCCRHExp {
       case 5:
         yc::AES_opt_key_schedule<5>(keys, scheduled_key);
         break;
+      case 6:
+        yc::AES_opt_key_schedule<6>(keys, scheduled_key);
+        break;
+      case 7:
+        yc::AES_opt_key_schedule<7>(keys, scheduled_key);
+        break;
       case 8:
         yc::AES_opt_key_schedule<8>(keys, scheduled_key);
         break;
@@ -108,6 +114,12 @@ class MITCCRHExp {
         break;
       case 5:
         ParaEncExp<5>(out, scheduled_key);
+        break;
+      case 6:
+        ParaEncExp<6>(out, scheduled_key);
+        break;
+      case 7:
+        ParaEncExp<7>(out, scheduled_key);
         break;
       case 8:
         ParaEncExp<8>(out, scheduled_key);
@@ -151,6 +163,12 @@ class MITCCRHExp {
         break;
       case 5:
         yc::ParaEnc<5, 1>(out, scheduled_key);
+        break;
+      case 6:
+        yc::ParaEnc<6, 1>(out, scheduled_key);
+        break;
+      case 7:
+        yc::ParaEnc<7, 1>(out, scheduled_key);
         break;
       case 8:
         yc::ParaEnc<8, 1>(out, scheduled_key);
