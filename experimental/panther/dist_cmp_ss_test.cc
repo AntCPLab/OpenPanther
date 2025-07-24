@@ -178,7 +178,7 @@ TEST_P(SSDistanceCmpTest, test_shared_distance) {
       }
     }
     auto get = (response[i] + vec_reply[i]) & MASK;
-    qpr0 &= MASK;
+    qp0 &= MASK;
     exp &= MASK;
     // cmp = q^2 + p^2 - 2qp
     // qp = q * p_0 + q * p_1 -  wrap * q

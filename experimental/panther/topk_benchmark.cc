@@ -5,9 +5,9 @@
 #include "absl/strings/escaping.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_split.h"
-#include "batch_argmax_prot.h"
+#include "batch_min_prot.h"
 #include "dist_cmp.h"
-#include "experimental/ann/bitwidth_change_prot.h"
+#include "experimental/ann/bitwidth_adjust_prot.h"
 #include "experimental/ann/fix_pir_customed/seal_mpir.h"
 #include "llvm/Support/CommandLine.h"
 #include "spdlog/spdlog.h"
@@ -111,7 +111,7 @@ int main(int argc, char** argv) {
   auto r0 = lctx->GetStats()->sent_actions.load();
   auto c0 = lctx->GetStats()->sent_bytes.load();
   const auto topk_s = std::chrono::system_clock::now();
-  BatchArgmaxProtocol batch_argmax(kctx, compare_radix);
+  BatchMinProtocol batch_argmax(kctx, compare_radix);
   auto out = batch_argmax.ComputeWithIndex(values, idx, bw, 0, l, bin_size);
   auto r1 = lctx->GetStats()->sent_actions.load();
   auto c1 = lctx->GetStats()->sent_bytes.load();
@@ -137,5 +137,4 @@ int main(int argc, char** argv) {
   const auto topk_e = std::chrono::system_clock::now();
   const DurationMillis Topk_time = topk_e - topk_s;
   SPDLOG_INFO("Distance cmp time: {} ms", Topk_time.count());
-  // SPDLOG_INFO("Bootstrap time: {} ms", ot_state->get(0));
 }

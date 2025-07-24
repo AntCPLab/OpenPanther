@@ -1,4 +1,4 @@
-#include "batch_argmax_prot.h"
+#include "batch_min_prot.h"
 #include "emp-tool/io/io_channel.h"
 #include "gtest/gtest.h"
 #include "yacl/link/test_util.h"
@@ -7,16 +7,31 @@
 #include "libspu/mpc/utils/ring_ops.h"
 #include "libspu/mpc/utils/simulate.h"
 namespace panther {
-class BatchArgmaxTest
-    : public ::testing::TestWithParam<std::pair<int64_t, int64_t>> {};
+class BatchMinTest : public ::testing::TestWithParam<
+                         std::tuple<int64_t, int64_t, int64_t, int64_t>> {};
 
-TEST_P(BatchArgmaxTest, truncate) {
+/**
+ * @brief Computes the minimum value and its index among n inputs, in parallel
+ * for batch_size samples.
+ * @param __0 batch size
+ * @param __1 n
+ * @param __2 Input bitwidth
+ * @param __3 Truncate bitwidth
+ */
+INSTANTIATE_TEST_SUITE_P(topk, BatchMinTest,
+                         testing::Values(std::make_tuple(1000, 120, 24, 5),
+                                         std::make_tuple(1000, 200, 24, 8)));
+
+TEST_P(BatchMinTest, WithTruncation) {
   using namespace spu;
   yacl::set_num_threads(1);
   auto parms = GetParam();
+  auto batch_size = std::get<0>(parms);
+  auto argmax_size = std::get<1>(parms);
+  auto bw = std::get<2>(parms);
+  auto shift = std::get<3>(parms);
+
   spu::FieldType field = spu::FM32;
-  auto batch_size = parms.first;
-  auto argmax_size = parms.second;
   spu::Shape shape = {batch_size, argmax_size};
   spu::NdArrayRef inp[2];
   spu::NdArrayRef index[2];
@@ -25,8 +40,6 @@ TEST_P(BatchArgmaxTest, truncate) {
   inp[1] = spu::mpc::ring_rand(field, shape);
   index[1] = spu::mpc::ring_rand(field, shape);
 
-  int64_t bw = 24;
-  int64_t shift = 5;
   auto input = spu::mpc::ring_rand(field, shape);
   // Input must > 0;
   spu::mpc::ring_bitmask_(input, 0, bw - 1);
@@ -64,7 +77,6 @@ TEST_P(BatchArgmaxTest, truncate) {
         spu::RuntimeConfig rt_config;
         rt_config.set_protocol(spu::ProtocolKind::CHEETAH);
         rt_config.set_field(field);
-        rt_config.set_fxp_fraction_bits(0);
         auto _ctx = std::make_unique<spu::SPUContext>(rt_config, lctx);
         auto *ctx = _ctx.get();
         spu::mpc::Factory::RegisterProtocol(ctx, lctx);
@@ -72,15 +84,13 @@ TEST_P(BatchArgmaxTest, truncate) {
         [[maybe_unused]] auto b0 = lctx->GetStats()->sent_bytes.load();
         [[maybe_unused]] auto s0 = lctx->GetStats()->sent_actions.load();
         auto start = std::chrono::high_resolution_clock::now();
-        BatchArgmaxProtocol batch_argmax(kctx, 5);
+        BatchMinProtocol batch_argmax(kctx, 5);
         auto _c = batch_argmax.ComputeWithIndex(inp[rank], index[rank], bw,
                                                 shift, batch_size, argmax_size);
 
-        // auto _c =
-        // batch_argmax.Compute(inp[rank], bw, batch_size, argmax_size);
         auto end = std::chrono::high_resolution_clock::now();
         SPDLOG_INFO(
-            "Time {} ms",
+            "Rank {} : Total Time: {} ms", rank,
             (std::chrono::duration_cast<std::chrono::microseconds>(end - start)
                  .count() /
              1000));
@@ -88,8 +98,8 @@ TEST_P(BatchArgmaxTest, truncate) {
         [[maybe_unused]] auto s1 = lctx->GetStats()->sent_actions.load();
         cmp_oup[rank] = _c[0];
         cmp_idx[rank] = _c[1];
-        SPDLOG_INFO("Send actions: {}", (s1 - s0));
-        SPDLOG_INFO("Send bytes: {} KB", (b1 - b0) / 1024.0);
+        SPDLOG_INFO("Rank {} : Sent actions: {}, Sent bytes: {} KB", rank,
+                    (s1 - s0), (b1 - b0) / 1024.0);
       });
   DISPATCH_ALL_FIELDS(field, "", [&]() {
     SPU_ENFORCE_EQ(cmp_oup[0].numel(), batch_size);
@@ -116,13 +126,17 @@ TEST_P(BatchArgmaxTest, truncate) {
   });
 }
 
-TEST_P(BatchArgmaxTest, localtest) {
+TEST_P(BatchMinTest, WithoutTruncation) {
   using namespace spu;
   yacl::set_num_threads(1);
   auto parms = GetParam();
+  auto batch_size = std::get<0>(parms);
+  auto argmax_size = std::get<1>(parms);
+  auto bw = std::get<2>(parms);
+  // No Truncation
+  int64_t shift = 0;
+
   spu::FieldType field = spu::FM32;
-  auto batch_size = parms.first;
-  auto argmax_size = parms.second;
   spu::Shape shape = {batch_size, argmax_size};
   spu::NdArrayRef inp[2];
   spu::NdArrayRef index[2];
@@ -131,8 +145,6 @@ TEST_P(BatchArgmaxTest, localtest) {
   inp[1] = spu::mpc::ring_rand(field, shape);
   index[1] = spu::mpc::ring_rand(field, shape);
 
-  int64_t bw = 24;
-  int64_t shift = 0;
   auto input = spu::mpc::ring_rand(field, shape);
   // Input must > 0;
   spu::mpc::ring_bitmask_(input, 0, bw - 1);
@@ -166,7 +178,6 @@ TEST_P(BatchArgmaxTest, localtest) {
         spu::RuntimeConfig rt_config;
         rt_config.set_protocol(spu::ProtocolKind::CHEETAH);
         rt_config.set_field(field);
-        rt_config.set_fxp_fraction_bits(0);
         auto _ctx = std::make_unique<spu::SPUContext>(rt_config, lctx);
         auto *ctx = _ctx.get();
         spu::mpc::Factory::RegisterProtocol(ctx, lctx);
@@ -175,14 +186,12 @@ TEST_P(BatchArgmaxTest, localtest) {
           [[maybe_unused]] auto b0 = lctx->GetStats()->sent_bytes.load();
           [[maybe_unused]] auto s0 = lctx->GetStats()->sent_actions.load();
           auto start = std::chrono::high_resolution_clock::now();
-          BatchArgmaxProtocol batch_argmax(kctx, 5);
+          BatchMinProtocol batch_argmax(kctx, 5);
           auto _c = batch_argmax.ComputeWithIndex(
               inp[rank], index[rank], bw, shift, batch_size, argmax_size);
 
-          // auto _c =
-          // batch_argmax.Compute(inp[rank], bw, batch_size, argmax_size);
           auto end = std::chrono::high_resolution_clock::now();
-          SPDLOG_INFO("Time {} ms",
+          SPDLOG_INFO("Rank {} : Total Time: {} ms", rank,
                       (std::chrono::duration_cast<std::chrono::microseconds>(
                            end - start)
                            .count() /
@@ -191,8 +200,8 @@ TEST_P(BatchArgmaxTest, localtest) {
           [[maybe_unused]] auto s1 = lctx->GetStats()->sent_actions.load();
           cmp_oup[rank] = _c[0];
           cmp_idx[rank] = _c[1];
-          SPDLOG_INFO("Send actions: {}", (s1 - s0));
-          SPDLOG_INFO("Send bytes: {} KB", (b1 - b0) / 1024.0);
+          SPDLOG_INFO("Rank {} : Sent actions: {}, Sent bytes: {} KB", rank,
+                      (s1 - s0), (b1 - b0) / 1024.0);
         }
       });
   DISPATCH_ALL_FIELDS(field, "", [&]() {
@@ -219,6 +228,4 @@ TEST_P(BatchArgmaxTest, localtest) {
   });
 }
 
-INSTANTIATE_TEST_SUITE_P(topk, BatchArgmaxTest,
-                         testing::Values(std::make_pair(1000, 120)));
 }  // namespace panther

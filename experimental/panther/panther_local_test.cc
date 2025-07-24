@@ -175,7 +175,7 @@ int main() {
         [[maybe_unused]] auto b0 = lctx->GetStats()->sent_bytes.load();
         [[maybe_unused]] auto s0 = lctx->GetStats()->sent_actions.load();
         auto start = std::chrono::high_resolution_clock::now();
-        BatchArgmaxProtocol batch_argmax(kctx, 5);
+        BatchMinProtocol batch_argmax(kctx, 5);
         auto _c = batch_argmax.ComputeWithIndex(inp[rank], index[rank], logt,
                                                 cluster_dc_bits,
                                                 total_bin_number, max_bin_size);

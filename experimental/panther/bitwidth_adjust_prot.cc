@@ -1,4 +1,4 @@
-#include "experimental/ann/bitwidth_change_prot.h"
+#include "experimental/panther/bitwidth_adjust_prot.h"
 
 #include "libspu/core/type.h"
 #include "libspu/mpc/cheetah/nonlinear/compare_prot.h"
@@ -9,12 +9,12 @@
 #include "libspu/mpc/utils/ring_ops.h"
 
 namespace panther {
-BitWidthChangeProtocol::BitWidthChangeProtocol(
+BitwidthAdjustProtocol::BitwidthAdjustProtocol(
     const std::shared_ptr<spu::mpc::cheetah::BasicOTProtocols>& base)
     : basic_ot_prot_(base) {
   SPU_ENFORCE(base != nullptr);
 }
-spu::NdArrayRef BitWidthChangeProtocol::TrunReduceCompute(
+spu::NdArrayRef BitwidthAdjustProtocol::TrunReduceCompute(
     const spu::NdArrayRef& inp, size_t bw, size_t shift_bits) {
   if (shift_bits > bw) {
     SPDLOG_INFO("Can't shift {} bits from {} bits", shift_bits, bw);
@@ -56,13 +56,12 @@ spu::NdArrayRef BitWidthChangeProtocol::TrunReduceCompute(
   return local_shift;
 }
 
-spu::NdArrayRef BitWidthChangeProtocol::ExtendCompute(
+spu::NdArrayRef BitwidthAdjustProtocol::ExtendCompute(
     const spu::NdArrayRef& inp, size_t bw, size_t extend_bw) {
   // Known MSB extend
   const int rank = basic_ot_prot_->Rank();
   const auto field = inp.eltype().as<spu::Ring2k>()->field();
   const int64_t numel = inp.numel();
-  // const size_t target_bw = bw + extend_bw;
 
   constexpr size_t N = 2;
   constexpr size_t nbits = 1;
@@ -72,7 +71,7 @@ spu::NdArrayRef BitWidthChangeProtocol::ExtendCompute(
     outp = spu::mpc::ring_randbit(field, inp.shape());
     std::vector<uint8_t> send(numel * N);
     using namespace spu;
-    DISPATCH_ALL_FIELDS(field, "MSB0_adjush", [&]() {
+    DISPATCH_ALL_FIELDS(field, "MSB0_adjust", [&]() {
       using u2k = std::make_unsigned<ring2k_t>::type;
       NdArrayView<const u2k> xinp(inp);
       NdArrayView<const u2k> xrnd(outp);
@@ -117,13 +116,14 @@ spu::NdArrayRef BitWidthChangeProtocol::ExtendCompute(
   return extend_result;
 }
 
-spu::NdArrayRef BitWidthChangeProtocol::ExtendComputeOpt(
+spu::NdArrayRef BitwidthAdjustProtocol::ExtendComputeOpt(
     const spu::NdArrayRef& inp, size_t bw, size_t extend_bw) {
-  // Known MSB extend
-  // If [x] > 0, the MSB is 0
-  // [x] = MSB||x_l
-  // the wrap bit of low bits x_l will be [msb]_0 ^ [msb]_1
-
+  // Known MSB extension optimization:
+  // If [x] > 0, the MSB is 0.
+  // Let [x]_0 = MSB_0||x'_0, [x]_1 = MSB_1||x'_1;
+  // The wrap bit of x'_0 + x'_1 will be MSB_0 ^ MSB_1
+  // Convert the wrap bit to a binary value in one round to obtaion the final
+  // result
   const auto field = inp.eltype().as<spu::Ring2k>()->field();
 
   spu::NdArrayRef outp = spu::mpc::ring_rshift(inp, bw - 1);
@@ -131,6 +131,7 @@ spu::NdArrayRef BitWidthChangeProtocol::ExtendComputeOpt(
   auto wrap_bool = basic_ot_prot_->B2ASingleBitWithSize(
       outp.as(spu::makeType<spu::mpc::cheetah::BShrTy>(field, 1)),
       static_cast<int>(extend_bw + 1));
+
   spu::mpc::ring_lshift_(wrap_bool, bw - 1);
   auto extend_result = spu::mpc::ring_bitmask(inp, 0, bw - 1);
   spu::mpc::ring_sub_(extend_result, wrap_bool);

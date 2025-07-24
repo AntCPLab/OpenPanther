@@ -146,7 +146,7 @@ int main(int argc, char** argv) {
   // Start computation:
   auto argmax_r0 = lctx->GetStats()->sent_actions.load();
   auto argmax_c0 = lctx->GetStats()->sent_bytes.load();
-  BatchArgmaxProtocol batch_argmax(kctx, compare_radix);
+  BatchMinProtocol batch_argmax(kctx, compare_radix);
   auto argmin_res = batch_argmax.ComputeWithIndex(
       value, index, logt, cluster_dc_bits, total_bin_number, max_bin_size);
   auto argmax_e = std::chrono::system_clock::now();

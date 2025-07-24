@@ -19,8 +19,8 @@ package(default_visibility = ["//visibility:public"])
 
 spu_cc_library(
     name = "bitwidth_change",
-    srcs = ["bitwidth_change_prot.cc"],
-    hdrs = ["bitwidth_change_prot.h"],
+    srcs = ["bitwidth_adjust_prot.cc"],
+    hdrs = ["bitwidth_adjust_prot.h"],
     deps = [
         "//libspu/mpc/cheetah/nonlinear:compare_prot",
         "//libspu/mpc/cheetah/nonlinear:truncate_prot",
@@ -30,8 +30,8 @@ spu_cc_library(
 )
 
 spu_cc_test(
-    name = "bitwidth_change_test",
-    srcs = ["bitwidth_change_test.cc"],
+    name = "bitwidth_adjust_test",
+    srcs = ["bitwidth_adjust_test.cc"],
     deps = [
         ":bitwidth_change",
         "//libspu/mpc:factory",
@@ -57,7 +57,7 @@ spu_cc_test(
     deps = [
         ":dist_cmp",
         "//libspu/mpc/cheetah:state",
-        "//libspu/mpc/cheetah/ot:ot",
+        "//libspu/mpc/cheetah/ot",
         "//libspu/mpc/cheetah/rlwe:lwe",
         "//libspu/mpc/utils:simulate",
         "@com_github_microsoft_seal//:seal",
@@ -188,19 +188,19 @@ spu_cc_binary(
 )
 
 spu_cc_test(
-    name = "batch_argmax_test",
-    srcs = ["batch_argmax_test.cc"],
+    name = "batch_min_test",
+    srcs = ["batch_min_test.cc"],
     deps = [
-        ":batch_argmax_prot",
+        ":batch_min_prot",
         "//libspu/mpc:factory",
         "//libspu/mpc/utils:simulate",
     ],
 )
 
 spu_cc_library(
-    name = "batch_argmax_prot",
-    srcs = ["batch_argmax_prot.cc"],
-    hdrs = ["batch_argmax_prot.h"],
+    name = "batch_min_prot",
+    srcs = ["batch_min_prot.cc"],
+    hdrs = ["batch_min_prot.h"],
     deps = [
         ":bitwidth_change",
         "//libspu/mpc/cheetah:state",
@@ -237,7 +237,7 @@ spu_cc_library(
     hdrs = ["common.h"],
     copts = AES_COPT_FLAGS,
     deps = [
-        ":batch_argmax_prot",
+        ":batch_min_prot",
         ":bitwidth_change",
         ":dist_cmp",
         ":topk",
@@ -258,7 +258,7 @@ spu_cc_binary(
     srcs = ["panther_demo.cc"],
     copts = AES_COPT_FLAGS,
     deps = [
-        ":batch_argmax_prot",
+        ":batch_min_prot",
         ":bitwidth_change",
         ":dist_cmp",
         ":topk",
@@ -279,7 +279,7 @@ spu_cc_binary(
     srcs = ["distance_benchmark.cc"],
     copts = AES_COPT_FLAGS,
     deps = [
-        ":batch_argmax_prot",
+        ":batch_min_prot",
         ":bitwidth_change",
         ":dist_cmp",
         ":topk",
@@ -300,7 +300,7 @@ spu_cc_binary(
     srcs = ["topk_benchmark.cc"],
     copts = AES_COPT_FLAGS,
     deps = [
-        ":batch_argmax_prot",
+        ":batch_min_prot",
         ":dist_cmp",
         ":topk",
         "//experimental/ann/fix_pir_customed:seal_mpir",
@@ -315,8 +315,8 @@ spu_cc_binary(
 )
 
 spu_cc_binary(
-    name = "test_topk",
-    srcs = ["test_topk.cc"],
+    name = "topk_test",
+    srcs = ["topk_test.cc"],
     copts = AES_COPT_FLAGS,
     deps = [
         ":topk",

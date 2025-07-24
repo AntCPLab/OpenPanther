@@ -200,7 +200,7 @@ std::vector<int32_t> TopK(size_t n, size_t k, size_t item_bits, size_t id_bits,
     INDEX[i] = A_idx[i] + B_idx[i];
     INPUT[i] = A[i] + B[i];
   }
-  sanns::gc::BitonicTopk(INPUT.get(), INDEX.get(), n, k, true);
+  panther::gc::BitonicTopk(INPUT.get(), INDEX.get(), n, k, true);
   for (size_t i = 0; i < k; i++) {
     gc_id[i] = INDEX[i].reveal<int32_t>(BOB);
     // std::cout << gc_id[i] << ":" << INPUT[i].reveal<int32_t>(BOB) <<
@@ -269,13 +269,13 @@ std::vector<int32_t> EndTopK(size_t n, size_t k, size_t item_bits,
     SINDEX[i] = SA_idx[i] + SB_idx[i];
     SINPUT[i] = SA[i] + SB[i];
   }
-  // sanns::gc::BitonicTopk(SINPUT.get(), SINDEX.get(), n_stash, k, true);
+  // panther::gc::BitonicTopk(SINPUT.get(), SINDEX.get(), n_stash, k, true);
   for (size_t i = 0; i < n; ++i) {
     INDEX[i] = A_idx[i] + B_idx[i];
     INPUT[i] = A[i] + B[i];
   }
 
-  sanns::gc::Discard(SINPUT.get(), n_stash, discard_bits);
+  panther::gc::Discard(SINPUT.get(), n_stash, discard_bits);
   for (size_t i = 0; i < n_stash; ++i) {
     INPUT[n + i] = SINPUT[i];
     INDEX[n + i] = SINDEX[i];
@@ -285,7 +285,7 @@ std::vector<int32_t> EndTopK(size_t n, size_t k, size_t item_bits,
     INDEX[i] = Integer(id_bits, 11111111, PUBLIC);
   }
 
-  sanns::gc::BitonicTopk(INPUT.get(), INDEX.get(), total_n, k, true);
+  panther::gc::BitonicTopk(INPUT.get(), INDEX.get(), total_n, k, true);
   for (size_t i = 0; i < k; i++) {
     gc_id[i] = INDEX[i].reveal<int32_t>(BOB);
     // std::cout << gc_id[i] << ":" << INPUT[i].reveal<int32_t>(PUBLIC)
@@ -330,9 +330,9 @@ std::vector<int32_t> NaiveTopK(size_t n, size_t k, size_t item_bits,
     INPUT[i] = A[i] + B[i];
     INDEX[i] = A_idx[i] + B_idx[i];
   }
-  sanns::gc::Discard(INPUT.get(), n, discard_bits);
-  sanns::gc::Naive_topk(INPUT.get(), INDEX.get(), n, k, MIN_TOPK.get(),
-                        MIN_ID.get());
+  panther::gc::Discard(INPUT.get(), n, discard_bits);
+  panther::gc::Naive_topk(INPUT.get(), INDEX.get(), n, k, MIN_TOPK.get(),
+                          MIN_ID.get());
 
   for (size_t i = 0; i < k; i++) {
     // gc_res[i] = MIN_TOPK[i].reveal<int32_t>(PUBLIC);

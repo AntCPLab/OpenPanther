@@ -5,25 +5,28 @@
 #include "libspu/mpc/cheetah/ot/basic_ot_prot.h"
 namespace panther {
 
-// class BasicOTProtocols;
+// Implementation the one-bit approximate truncation with reduction
 
-// Implementation the one-bit approximate truncation
-// Ref: Huang et al. "Cheetah: Lean and Fast Secure Two-Party Deep Neural
-// Network Inference"
-//  https://eprint.iacr.org/2022/207.pdf
-//
-// [(x >> s) + e]_A <- Truncate([x]_A, s) with |e| <= 1 probabilistic error
-//
-// Math:
-//   Given x = x0 + x1 mod 2^k
-//   x >> s \approx (x0 >> s) + (x1 >> s) - w * 2^{k - s} mod 2^k
-//   where w = 1{x0 + x1 > 2^{k} - 1} indicates whether the sum wrap round 2^k
-class BitWidthChangeProtocol {
+/**
+ * Truncation with Reduction and Extension:
+ * Reference: " SIRNN : A Math Library for Secure RNN Inference"
+ * (https://eprint.iacr.org/2021/459.pdf)
+ *
+ * When computing wrap bits in extension protocol, we use the known MSB protocol
+ * from:
+ * Reference: "Cheetah : Lean and Fast Secure Two-Party Deep Neural
+ * Network Inference" (https://eprint.iacr.org/2022/207.pdf)
+ *
+ * We optimize the communication rounds in opt function:
+ * More details please refer to Section 6.2 "Efficient bitwidth conversion" in
+ * Panther
+ *
+ */
+
+class BitwidthAdjustProtocol {
  public:
-  explicit BitWidthChangeProtocol(
+  explicit BitwidthAdjustProtocol(
       const std::shared_ptr<spu::mpc::cheetah::BasicOTProtocols> &base);
-
-  // ~BitWidthChangeProtocol();
 
   spu::NdArrayRef TrunReduceCompute(const spu::NdArrayRef &inp, size_t bw,
                                     size_t shift_bits);

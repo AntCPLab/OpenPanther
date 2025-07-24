@@ -1,8 +1,10 @@
-#include "assert.h"
-#include "memory"
 #include "topk.h"
 
-// #define CORRECTNESS 0
+#include "assert.h"
+#include "memory"
+
+#define CORRECTNESS 0
+const int32_t max_dist = INT32_MAX;
 using namespace std;
 using namespace panther::gc;
 int32_t uint_to_int(const int32_t &x, int32_t bit_size) {
@@ -102,6 +104,8 @@ void test_min(const int n, int l, int item_bits, int discard_bits,
            << " " << p_min_id << " " << i << " "
            << (MIN_ID[i].reveal<int32_t>(PUBLIC)) << std::endl;
     }
+    assert(p_min_id == MIN_ID[i].reveal<int32_t>(PUBLIC));
+    assert(min_res == gc_res);
   }
   cout << "Min test correct! " << endl;
 #endif
@@ -124,8 +128,6 @@ void test_bitonic_topk(int n, int k, int item_bits, int discard_bits,
 
   vector<uint32_t> A_index(n);
   vector<uint32_t> B_index(n);
-  // Use for test
-  // srand(0);
 
   for (int i = 0; i < n; ++i) {
     A_input[i] = (rand() % 256) & item_mask;
@@ -147,9 +149,9 @@ void test_bitonic_topk(int n, int k, int item_bits, int discard_bits,
   }
 
   Discard(INPUT.get(), n, discard_bits);
-  sanns::gc::BitonicTopk(INPUT.get(), INDEX.get(), n, k, true);
+  panther::gc::BitonicTopk(INPUT.get(), INDEX.get(), n, k, true);
 
-  //   // std::cout << "test" << std::endl;
+  // #ifdef CORRECTNESS
   //   vector<int32_t> plain_input(n);
   //   for (int i = 0; i < n; i++) {
   //     plain_input[i] = (A_input[i] + B_input[i]) & item_mask;
@@ -162,17 +164,16 @@ void test_bitonic_topk(int n, int k, int item_bits, int discard_bits,
   //     gc_res = uint_to_int(gc_res, item_bits - discard_bits);
   //     if (gc_res != plain_input[k - 1 - i])
   //       std::cout << gc_res << " " << plain_input[k - 1 - i] << endl;
-
-  //     // int32_t gc_id = INDEX[i].reveal<int32_t>(PUBLIC);
-  //     // if (gc_id != plain_input[i])
-  //     // std::cout << gc_id << " " << plain_topk_id[i] << endl;
+  //     int32_t gc_id = INDEX[i].reveal<int32_t>(PUBLIC);
   //   }
   //   std::cout << "Naive topk test correct!" << std::endl;
+  // #endif
 }
 
 void test_naive_topk(int n, int k, int item_bits, int discard_bits,
                      int id_bits) {
   int32_t item_mask = (1 << item_bits) - 1;
+  int32_t id_mask = (1 << id_bits) - 1;
   unique_ptr<Integer[]> A = make_unique<Integer[]>(n);
   unique_ptr<Integer[]> B = make_unique<Integer[]>(n);
 
@@ -197,19 +198,18 @@ void test_naive_topk(int n, int k, int item_bits, int discard_bits,
     A_input[i] = rand() & item_mask;
     B_input[i] = rand() & item_mask;
 
-    A_index[i] = rand() & item_mask;
-    B_index[i] = rand() & item_mask;
+    A_index[i] = i & id_mask;
+    B_index[i] = 0 & id_mask;
 
     A[i] = Integer(item_bits, A_input[i], ALICE);
     B[i] = Integer(item_bits, B_input[i], BOB);
 
-    AI[i] = Integer(id_bits, A_input[i], ALICE);
-    BI[i] = Integer(id_bits, B_input[i], BOB);
+    AI[i] = Integer(id_bits, A_index[i], ALICE);
+    BI[i] = Integer(id_bits, B_index[i], BOB);
   }
 
   for (int i = 0; i < n; ++i) {
     INPUT[i] = A[i] + B[i];
-    // INDEX[i] = Integer(id_bits, i, ALICE);
     INDEX[i] = AI[i] + BI[i];
   }
 
@@ -242,7 +242,9 @@ void test_naive_topk(int n, int k, int item_bits, int discard_bits,
     if (gc_res != plain_topk[i]) cout << gc_res << " " << plain_topk[i] << endl;
 
     int32_t gc_id = MIN_ID[i].reveal<int32_t>(PUBLIC);
-    if (gc_id != plain_topk_id[i]) cout << gc_id << " " << plain_topk_id[i];
+    if (gc_id != plain_topk_id[i])
+      cout << "Some thing wrong " << (gc_id & id_mask) << " "
+           << plain_topk_id[i] << endl;
   }
   std::cout << "Naive topk test correct!" << std::endl;
 #endif
@@ -284,6 +286,8 @@ void test_approximate_topk(int n, int k, int l, uint32_t item_bits,
                    MIN_ID.get());
 
 #ifdef CORRECTNESS
+  int32_t item_mask = (1 << item_bits) - 1;
+  int32_t bin_size = n / l;
   vector<int32_t> plain_input(n);
   vector<int32_t> min_bin(l);
   vector<int32_t> min_index(l);
@@ -294,6 +298,7 @@ void test_approximate_topk(int n, int k, int l, uint32_t item_bits,
     plain_input[i] = uint_to_int(plain_input[i], item_bits);
     plain_input[i] >>= discard_bits;
   }
+
   for (int32_t i = 0; i < l; i++) {
     min_bin[i] = plain_input[i * bin_size];
     min_index[i] = i * bin_size;
@@ -395,10 +400,6 @@ int test_all(int argc, char **argv) {
 
   cout << "Communication for test_approximate_topk: " << appro_time / 1024
        << " KBs" << endl;
-
-  //   cout << "Number of And Gate: " <<
-  //   CircuitExecution::circ_exec->num_and()
-  //    << endl;
 
   finalize_semi_honest();
   cout << "Total communication: " << io->counter / 1024 << " KBs" << endl;

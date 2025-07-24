@@ -186,8 +186,8 @@ std::vector<size_t> GcTopkCluster(spu::NdArrayRef& value,
       auto start = std::chrono::system_clock::now();
 
       gc_io->flush();
-      auto topk_id =
-          sanns::gc::TopK(bin, k, bw_value, bw_index, input_value, input_index);
+      auto topk_id = panther::gc::TopK(bin, k, bw_value, bw_index, input_value,
+                                       input_index);
       gc_io->flush();
       auto end = std::chrono::system_clock::now();
       const DurationMillis topk_time = end - start;
@@ -322,7 +322,7 @@ std::vector<std::vector<uint32_t>> FixPirResultOpt(
       ct.get(), nd_inp,
       [&](const spu::NdArrayRef& input,
           const std::shared_ptr<spu::mpc::cheetah::BasicOTProtocols>& base_ot) {
-        BitWidthChangeProtocol prot(base_ot);
+        BitwidthAdjustProtocol prot(base_ot);
         auto o = prot.TrunReduceCompute(input, logt, shift_bits);
 
         spu::mpc::ring_bitmask_(o, 0, logt - shift_bits);
@@ -431,7 +431,7 @@ std::vector<uint32_t> Truncate(
       ct.get(), nd_inp,
       [&](const spu::NdArrayRef& input,
           const std::shared_ptr<spu::mpc::cheetah::BasicOTProtocols>& base_ot) {
-        BitWidthChangeProtocol prot(base_ot);
+        BitwidthAdjustProtocol prot(base_ot);
         return prot.TrunReduceCompute(input, logt, shift_bits);
       });
 
@@ -464,8 +464,8 @@ std::vector<int32_t> GcEndTopk(std::vector<uint32_t>& value,
 
   size_t n = value.size();
   gc_io->flush();
-  auto topk_id = sanns::gc::EndTopK(n, k, bw_value, bw_id, pad_s, bw_stash,
-                                    discard_stash, value, id, s_value, s_id);
+  auto topk_id = panther::gc::EndTopK(n, k, bw_value, bw_id, pad_s, bw_stash,
+                                      discard_stash, value, id, s_value, s_id);
   gc_io->flush();
   SPU_ENFORCE_EQ(topk_id.size(), k);
   return topk_id;
@@ -488,7 +488,7 @@ std::vector<std::vector<uint32_t>> FixPirResult(
       ct.get(), nd_inp,
       [&](const spu::NdArrayRef& input,
           const std::shared_ptr<spu::mpc::cheetah::BasicOTProtocols>& base_ot) {
-        BitWidthChangeProtocol prot(base_ot);
+        BitwidthAdjustProtocol prot(base_ot);
         auto trun_value = prot.TrunReduceCompute(input, logt, shift_bits);
         spu::mpc::ring_bitmask_(trun_value, 0, logt - shift_bits);
         return prot.ExtendComputeOpt(trun_value, logt - shift_bits,
