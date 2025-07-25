@@ -233,7 +233,6 @@ void SealPir::SetPolyModulusDegree(size_t degree) {
       std::make_unique<seal::EncryptionParameters>(seal::scheme_type::bfv);
   enc_params_[0]->set_poly_modulus_degree(degree);
   enc_params_[0]->set_plain_modulus((1ULL << options_.logt));
-  SPDLOG_INFO("Degree: {}", degree);
   enc_params_[0]->set_coeff_modulus(
       seal::CoeffModulus::Create(degree, {24, 36, 37}));
   enc_params_[1] =
@@ -258,20 +257,12 @@ void SealPir::SetPirParams(size_t element_number, size_t element_size) {
   // number of FV plaintexts needed to represent all elements
   uint64_t num_of_plaintexts =
       PlaintextsPerDb(logt, N, element_number, element_size);
-  // TODO(ljy): let d be 2 and which can be faster
   size_t d = 2;
-  // if (element_number > 8192) {
-  // d = 2;
-  // }
 
   std::vector<uint64_t> nvec = GetDimensions(num_of_plaintexts, d);
 
   // TODO:expansion ratio modulus switch
   uint32_t expansion_ratio = 1;
-  // for (const auto &modulus : enc_params_->coeff_modulus()) {
-  // double logqi = std::log2(modulus.value());
-  // expansion_ratio += ceil(logqi / logt);
-  // }
 
   // dimension
   pir_params_.enable_symmetric = true;
@@ -1347,7 +1338,7 @@ std::vector<seal::Ciphertext> SealPirServer::GenerateReply(
     YACL_ENFORCE(expanded_query.size() == n_i, "size mismatch!!! {}-{}",
                  expanded_query.size(), n_i);
 
-    // // decrypt expand_query to verift
+    // // decrypt expand_query to verify
     // std::cout << "nvec i: " << i << "\n";
 
     //  for(size_t ii = 0; ii < expanded_query.size(); ii++) {
@@ -1423,8 +1414,6 @@ std::vector<seal::Ciphertext> SealPirServer::GenerateReply(
         seal::Ciphertext temp;
         for (j += 1; j < n_i; j++) {
           if ((*cur)[k + j * product].is_zero()) {
-            // SPDLOG_INFO("cur[{}] is zero, k:{}, j:{}", (k + j * product),
-            // k, j);
             continue;
           }
           evaluator_[i]->multiply_plain(expanded_query[j],
@@ -1570,7 +1559,7 @@ void SealPirServer::DoPirAnswer(
 // TODO(ljy): clean H2A
 struct SealPirServer::Impl : public spu::mpc::cheetah::EnableCPRNG {
  public:
-  Impl(){};
+  Impl() {};
 };
 
 void SealPirServer::DecodePolyToVector(seal::Plaintext &poly,
@@ -1605,7 +1594,6 @@ void SealPirServer::H2A(std::vector<seal::Ciphertext> &ct,
 
   spu::mpc::cheetah::SubPlainInplace(ct[0], rand, *context_[1]);
 
-  // impl_->UniformPoly(*context_[1], &rand, ct[0].parms_id());
   seal::Plaintext dest;
   DecodePolyToVector(rand, dest, enc_params_[1]->poly_modulus_degree(), 1);
   seal::Plaintext dest_2;
@@ -1613,14 +1601,12 @@ void SealPirServer::H2A(std::vector<seal::Ciphertext> &ct,
   DecodePolyToVector(dest, dest_2, enc_params_[0]->poly_modulus_degree(), 0);
 
   memcpy(random_mask.data(), dest_2.data(), random_mask.size() * 8);
-  // }
 }
 
 // Client Defination
 // SealPirClient
 SealPirClient::SealPirClient(const SealPirOptions &options) : SealPir(options) {
   for (size_t i = 0; i < 2; i++) {
-    // std::cout << "enc " << i << std::endl;
     keygen_[i] = std::make_unique<seal::KeyGenerator>(*context_[i]);
     seal::SecretKey secret_key = keygen_[i]->secret_key();
     keygen_[i]->create_public_key(public_key_[i]);

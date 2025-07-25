@@ -22,7 +22,7 @@
 
 #include "spdlog/spdlog.h"
 
-#include "experimental/ann/fix_pir_customed/serializable.pb.h"
+#include "experimental/panther/customize_pir/serializable.pb.h"
 
 namespace spu::seal_pir {
 
@@ -67,7 +67,8 @@ void MultiQueryServer::GenerateSimpleHash() {
     max_bin_item_size_ = std::max(max_bin_item_size_, hash_.size());
   }
 }
-void MultiQueryServer::SetDbSeperateId(const std::vector<uint8_t> &db_bytes) {
+void MultiQueryServer::SetDbSeperateId(const std::vector<uint8_t> &db_bytes,
+                                       const std::vector<size_t> &permuted_id) {
   std::shared_ptr<std::vector<seal::Plaintext>> db_plaintext =
       std::make_shared<std::vector<seal::Plaintext>>();
   *db_plaintext = pir_server_[0]->SetPublicDatabase(
@@ -79,7 +80,8 @@ void MultiQueryServer::SetDbSeperateId(const std::vector<uint8_t> &db_bytes) {
     db_id.reserve(max_bin_item_size_);
 
     for (size_t j : simple_hash_[idx]) {
-      db_id.emplace_back(j);
+      auto index = permuted_id.size() > 0 ? permuted_id[j] : j;
+      db_id.emplace_back(index);
     }
     for (size_t j = simple_hash_[idx].size(); j < max_bin_item_size_; ++j) {
       db_id.emplace_back(UINT64_MAX);
@@ -220,7 +222,6 @@ void MultiQueryServer::DoMultiPirAnswer(
 }
 std::vector<std::vector<std::vector<seal::Ciphertext>>>
 MultiQueryServer::ExpandQueryS(const SealMultiPirQueryProto &query_proto) {
-  std::cout << cuckoo_params_.NumBins() << std::endl;
   size_t L = cuckoo_params_.NumBins();
   std::vector<std::vector<std::vector<seal::Ciphertext>>> res(L);
   std::vector<std::vector<std::vector<std::vector<seal::Ciphertext>>>> tmp(

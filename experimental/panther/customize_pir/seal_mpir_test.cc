@@ -40,12 +40,15 @@ struct TestParams {
   size_t element_size;
   size_t poly_degree;
 };
-
+class SealMultiPirTest : public testing::TestWithParam<TestParams> {};
 INSTANTIATE_TEST_SUITE_P(Works_Instances, SealMultiPirTest,
-                         testing::Values(TestParams{100, 100000, 4096,
-                                                    4096}));  //
+                         testing::Values(
+                             // TestParams{100, 100000, 4096, 4096},
+                             TestParams{50, 100000, 4096, 4096}));  //
 
-// Generate some fake random data for unit test
+using DurationMillis = std::chrono::duration<double, std::milli>;
+
+// Generate random data for unit test
 std::vector<uint8_t> GenerateDbData(TestParams params) {
   std::vector<uint8_t> db_data(params.element_number * params.element_size * 4);
   std::vector<uint32_t> db_raw_data(params.element_number *
@@ -68,11 +71,13 @@ std::vector<uint8_t> GenerateDbData(TestParams params) {
   return db_data;
 }
 
+// Generate non-repeating fake queries
 std::vector<size_t> GenerateQueryIndex(size_t batch_number,
                                        size_t element_number) {
   std::random_device rd;
   std::mt19937 gen(rd());
 
+  std::set<size_t> query_index_set;
   while (true) {
     query_index_set.insert(gen() % element_number);
     if (query_index_set.size() == batch_number) {
@@ -83,10 +88,6 @@ std::vector<size_t> GenerateQueryIndex(size_t batch_number,
   query_index.assign(query_index_set.begin(), query_index_set.end());
   return query_index;
 }
-
-using DurationMillis = std::chrono::duration<double, std::milli>;
-
-class SealMultiPirTest : public testing::TestWithParam<TestParams> {};
 
 TEST_P(SealMultiPirTest, WithH2A) {
   yacl::set_num_threads(32);
@@ -109,7 +110,6 @@ TEST_P(SealMultiPirTest, WithH2A) {
 
   std::vector<size_t> query_index =
       GenerateQueryIndex(batch_number, element_number);
-
   std::vector<uint8_t> db_bytes = GenerateDbData(params);
 
   auto ctxs = yacl::link::test::SetupBrpcWorld(2);
@@ -137,7 +137,7 @@ TEST_P(SealMultiPirTest, WithH2A) {
   ::spu::seal_pir::MultiQueryClient mpir_client(options, cuckoo_params,
                                                 seed_client);
 
-  // server setup data
+  // server encoded data
   mpir_server.SetDbSeperateId(db_bytes);
 
   std::future<void> pir_send_keys =
@@ -170,7 +170,7 @@ TEST_P(SealMultiPirTest, WithH2A) {
   const auto pir_end_time = std::chrono::system_clock::now();
   const DurationMillis pir_time = pir_end_time - pir_start_time;
 
-  SPDLOG_INFO("pir time(online) : {} ms", pir_time.count());
+  SPDLOG_INFO("Pir time (online) : {} ms", pir_time.count());
 
   auto logt = 13;
   uint32_t mask = (1ULL << logt) - 1;

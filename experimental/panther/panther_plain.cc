@@ -16,7 +16,7 @@ const size_t knn = 10;
 
 using namespace std;
 vector<vector<uint32_t>> read_data(size_t n, size_t dim, string filename) {
-  std::ifstream inputFile("./experimental/ann/" + filename);
+  std::ifstream inputFile("./experimental/panther/" + filename);
   if (!inputFile.is_open()) {
     std::cerr << "Can't open it!" << std::endl;
   }

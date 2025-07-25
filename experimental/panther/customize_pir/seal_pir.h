@@ -26,7 +26,7 @@
 
 #include "libspu/mpc/cheetah/arith/vector_encoder.h"
 
-#include "experimental/ann/fix_pir_customed/serializable.pb.h"
+#include "experimental/panther/customize_pir/serializable.pb.h"
 
 namespace spu::seal_pir {
 

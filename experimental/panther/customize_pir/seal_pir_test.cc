@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "experimental/ann/fix_pir_customed/seal_pir.h"
+#include "experimental/panther/customize_pir/seal_pir.h"
 
 #include <chrono>
 #include <memory>
@@ -25,10 +25,9 @@
 namespace spu::seal_pir {
 namespace {
 struct TestParams {
-  size_t N = 4096;
+  size_t N;
   size_t element_number;
-  size_t element_size = 288;
-  size_t query_size = 0;
+  size_t element_size;
 };
 
 std::vector<uint8_t> GenerateDbData(TestParams params) {
@@ -85,8 +84,6 @@ TEST_P(SealPirTest, Works) {
 #endif
 
   // === server setup
-  // using uint32_t to save coeff
-
   std::shared_ptr<IDbElementProvider> db_provider =
       std::make_shared<MemoryDbElementProvider>(db_data,
                                                 params.element_size * 4);
@@ -95,16 +92,6 @@ TEST_P(SealPirTest, Works) {
 
   SPDLOG_INFO("Server fininshed SetDatabase");
 
-  /* galkey data 28MB, cause pipeline unittest timeout
-  // client send galois keys to server
-  std::future<void> client_galkey_func =
-      std::async([&] { return client.SendGaloisKeys(ctxs[0]); });
-  std::future<void> server_galkey_func =
-      std::async([&] { return server.RecvGaloisKeys(ctxs[1]); });
-
-  client_galkey_func.get();
-  server_galkey_func.get();
-  */
   // use offline
   seal::GaloisKeys galkey = client.GenerateGaloisKeys(0);
   server.SetGaloisKeys(galkey, 0);
@@ -146,15 +133,7 @@ TEST_P(SealPirTest, Works) {
             0);
 }
 
-// INSTANTIATE_TEST_SUITE_P(
-//     Works_Instances, SealPirTest,
-//     testing::Values(TestParams{4096, 1 << 19}       // element size default
-//     288B
-
-//                     ));
-
 INSTANTIATE_TEST_SUITE_P(Works_Instances, SealPirTest,
                          testing::Values(TestParams{4096, 2048, 20 * 128}));
-// small element_size to avoid out of memory
 
 }  // namespace spu::seal_pir

@@ -461,7 +461,7 @@ int main(int argc, char **argv) {
           .count();
   cout << "Naive topk time: " << time_naive_topk_us / 1000 << " ms" << endl;
   size_t naive_topk_comm = io->counter - initial_counter;
-  cout << "Communication for test_naive_topk: " << naive_topk_comm / 1024
+  cout << "Communication cost test_naive_topk: " << naive_topk_comm / 1024
        << " KBs" << endl;
 
   initial_counter = io->counter;
@@ -475,7 +475,7 @@ int main(int argc, char **argv) {
 
   cout << "Bitonic topk time: " << time_naive_topk_us / 1000 << " ms" << endl;
   naive_topk_comm = io->counter - initial_counter;
-  cout << "Communication for test_bitonic_topk: " << naive_topk_comm / 1024
+  cout << "Communication cost test_bitonic_topk: " << naive_topk_comm / 1024
        << " KBs" << endl;
 
   finalize_semi_honest();
