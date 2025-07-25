@@ -5,13 +5,13 @@
 #include "absl/strings/escaping.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_split.h"
-#include "batch_min_prot.h"
+#include "batch_min.h"
 #include "dist_cmp.h"
-#include "experimental/ann/bitwidth_adjust_prot.h"
+#include "experimental/ann/bitwidth_adjust.h"
 #include "experimental/ann/fix_pir_customed/seal_mpir.h"
+#include "gc_topk.h"
 #include "llvm/Support/CommandLine.h"
 #include "spdlog/spdlog.h"
-#include "topk.h"
 #include "yacl/base/buffer.h"
 #include "yacl/link/link.h"
 #include "yacl/link/test_util.h"
@@ -76,7 +76,6 @@ std::vector<std::vector<uint32_t>> ReadClusterPoint(size_t point_number,
 };
 
 std::vector<uint32_t> ReadQuery(size_t num_dims) {
-  // TODO(ljy):
   std::vector<uint32_t> q(num_dims);
   for (size_t i = 0; i < num_dims; i++) {
     q[i] = 1 % 256;
@@ -85,8 +84,6 @@ std::vector<uint32_t> ReadQuery(size_t num_dims) {
 }
 
 int main(int argc, char** argv) {
-  // TODO(ljy): add command line operations
-
   llvm::cl::ParseCommandLineOptions(argc, argv);
   yacl::set_num_threads(32);
   srand(0);
@@ -101,19 +98,8 @@ int main(int argc, char** argv) {
   auto kctx = std::make_shared<spu::KernelEvalContext>(hctx.get());
   auto lctx = hctx->lctx();
   auto rank = Rank.getValue();
-  // for (size_t i = 0; i < 20; i++) {
-  // auto a = lctx->Spawn();
-  // a->SetThrottleWindowSize(0);
-  // }
-
-  // auto* comm = kctx->getState<spu::mpc::Communicator>();
-  // auto* ot_state = kctx->getState<spu::mpc::cheetah::CheetahOTState>();
-  // auto nworkers = ot_state->maximum_instances();
-  // for (size_t i = 0; i < nworkers; i++) {
-  //   ot_state->LazyInit(comm, i);
-  // }
-
   lctx->SetThrottleWindowSize(0);
+
   if (rank == 0) {
     // prepare mpir client
     // auto to = lctx->NextRank();
@@ -131,8 +117,7 @@ int main(int argc, char** argv) {
     dis_client.GenerateQuery(q);
 
     // shape: (total_bin_number, max_bin_size);
-    // TODO: how to pad?
-    auto dis = dis_client.RecvReply(cluster_num);
+    o dis = dis_client.RecvReply(cluster_num);
     auto r1 = lctx->GetStats()->sent_actions.load();
     auto c1 = lctx->GetStats()->sent_bytes.load();
 
@@ -148,18 +133,13 @@ int main(int argc, char** argv) {
     gc_io->sync();
 
     lctx->SetThrottleWindowSize(0);
-    // prepare distance compute client
-    // (HE parameters for distance calculation are independent of the PIR)
 
     total_time_s = std::chrono::system_clock::now();
-    // Distance Compute
     r0 = lctx->GetStats()->sent_actions.load();
     c0 = lctx->GetStats()->sent_bytes.load();
     q = ReadQuery(dims);
     dis_client.GenerateQuery(q);
 
-    // shape: (total_bin_number, max_bin_size);
-    // TODO: how to pad?
     dis = dis_client.RecvReply(cluster_num);
     r1 = lctx->GetStats()->sent_actions.load();
     c1 = lctx->GetStats()->sent_bytes.load();
@@ -171,13 +151,10 @@ int main(int argc, char** argv) {
     SPDLOG_INFO("Distance client sent actions: {}, Distance comm: {} MB",
                 r1 - r0, (c1 - c0) / 1024.0 / 1024.0);
   } else {
-    // server
-
     DisServer dis_server(dis_N, logt, lctx);
     dis_server.RecvPublicKey();
 
     auto total_time_s = std::chrono::system_clock::now();
-    // TODO(ljy): shuffle the points?
     auto r0 = lctx->GetStats()->sent_actions.load();
     auto c0 = lctx->GetStats()->sent_bytes.load();
     auto ps = ReadClusterPoint(cluster_num, dims);
@@ -197,7 +174,6 @@ int main(int argc, char** argv) {
 
     lctx->SetThrottleWindowSize(0);
     total_time_s = std::chrono::system_clock::now();
-    // TODO(ljy): shuffle the points?
     r0 = lctx->GetStats()->sent_actions.load();
     c0 = lctx->GetStats()->sent_bytes.load();
     ps = ReadClusterPoint(cluster_num, dims);
@@ -211,8 +187,6 @@ int main(int argc, char** argv) {
     SPDLOG_INFO("Distance cmp time: {} ms", dis_cmp_time_2.count());
     SPDLOG_INFO("Distance server sent actions: {}, Distance comm: {} MB",
                 r1 - r0, (c1 - c0) / 1024.0 / 1024.0);
-
-    // sleep(1000);
   }
 
   lctx->WaitLinkTaskFinish();

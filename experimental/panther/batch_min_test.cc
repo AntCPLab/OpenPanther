@@ -1,4 +1,5 @@
-#include "batch_min_prot.h"
+#include "batch_min.h"
+
 #include "emp-tool/io/io_channel.h"
 #include "gtest/gtest.h"
 #include "yacl/link/test_util.h"

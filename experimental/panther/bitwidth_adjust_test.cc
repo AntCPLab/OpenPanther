@@ -1,6 +1,7 @@
+#include "experimental/panther/bitwidth_adjust.h"
+
 #include <random>
 
-#include "experimental/panther/bitwidth_adjust_prot.h"
 #include "gtest/gtest.h"
 
 #include "libspu/mpc/cheetah/nonlinear/truncate_prot.h"

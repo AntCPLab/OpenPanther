@@ -1,4 +1,4 @@
-#include "topk.h"
+#include "gc_topk.h"
 
 #include "emp-sh2pc/emp-sh2pc.h"
 

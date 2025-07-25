@@ -5,8 +5,6 @@
 #include "libspu/mpc/cheetah/ot/basic_ot_prot.h"
 namespace panther {
 
-// Implementation the one-bit approximate truncation with reduction
-
 /**
  * Truncation with Reduction and Extension:
  * Reference: " SIRNN : A Math Library for Secure RNN Inference"

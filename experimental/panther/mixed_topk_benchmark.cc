@@ -5,13 +5,13 @@
 #include "absl/strings/escaping.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_split.h"
-#include "batch_min_prot.h"
+#include "batch_min.h"
 #include "dist_cmp.h"
-#include "experimental/ann/bitwidth_adjust_prot.h"
+#include "experimental/ann/bitwidth_adjust.h"
 #include "experimental/ann/fix_pir_customed/seal_mpir.h"
+#include "gc_topk.h"
 #include "llvm/Support/CommandLine.h"
 #include "spdlog/spdlog.h"
-#include "topk.h"
 #include "yacl/base/buffer.h"
 #include "yacl/link/link.h"
 #include "yacl/link/test_util.h"
@@ -102,7 +102,6 @@ int main(int argc, char** argv) {
   auto* ot_state = kctx->getState<spu::mpc::cheetah::CheetahOTState>();
 
   auto nworkers = ot_state->maximum_instances();
-  // size_t nworkers = 32;
 
   for (size_t i = 0; i < nworkers; i++) {
     ot_state->LazyInit(comm, i);

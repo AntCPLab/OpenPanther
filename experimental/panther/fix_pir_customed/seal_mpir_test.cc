@@ -26,26 +26,38 @@
 #include "libspu/psi/cryptor/sodium_curve25519_cryptor.h"
 
 namespace spu::seal_pir {
-namespace {
+
+/**
+ * @param batch_number Number of batch queries
+ * @param element_number Total Number of elements in database
+ * @param element_size The number of coefficients per element (After encoding)
+ * @param poly_degree Polynomial degree used in FHE (Customed version limited N
+ * = 4096)
+ */
 struct TestParams {
   size_t batch_number;
   size_t element_number;
-  size_t element_size = 288;
-  size_t poly_degree = 4096;  // now we support 4096 and 8192
+  size_t element_size;
+  size_t poly_degree;
 };
 
+INSTANTIATE_TEST_SUITE_P(Works_Instances, SealMultiPirTest,
+                         testing::Values(TestParams{100, 100000, 4096,
+                                                    4096}));  //
+
+// Generate some fake random data for unit test
 std::vector<uint8_t> GenerateDbData(TestParams params) {
   std::vector<uint8_t> db_data(params.element_number * params.element_size * 4);
   std::vector<uint32_t> db_raw_data(params.element_number *
                                     params.element_size);
-
   std::random_device rd;
-
   std::mt19937 gen(rd());
 
   for (uint64_t i = 0; i < params.element_number; i++) {
     for (uint64_t j = 0; j < params.element_size; j++) {
-      auto val = 111 % 2048;
+      // ToFix(ljy) ? remove magic number
+      auto val = gen() % 2048;
+      // Padding each item with 0b01
       val = (val << 2) + 1;
       db_raw_data[(i * params.element_size) + j] = val;
     }
@@ -61,23 +73,18 @@ std::vector<size_t> GenerateQueryIndex(size_t batch_number,
   std::random_device rd;
   std::mt19937 gen(rd());
 
-  std::set<size_t> query_index_set;
-
   while (true) {
     query_index_set.insert(gen() % element_number);
-
     if (query_index_set.size() == batch_number) {
       break;
     }
   }
-
   std::vector<size_t> query_index;
   query_index.assign(query_index_set.begin(), query_index_set.end());
   return query_index;
 }
 
 using DurationMillis = std::chrono::duration<double, std::milli>;
-}  // namespace
 
 class SealMultiPirTest : public testing::TestWithParam<TestParams> {};
 
@@ -89,12 +96,12 @@ TEST_P(SealMultiPirTest, WithH2A) {
   size_t batch_number = params.batch_number;
 
   SPDLOG_INFO(
-      "N: {}, batch_number: {}, element_size: {} bytes, "
+      "N: {}, batch_number: {}, element_size: {}, "
       "element_number: 2^{:.2f} = {}",
       params.poly_degree, batch_number, params.element_size,
       std::log2(params.element_number), params.element_number);
 
-  // size_t batch_number = 256;
+  // Cuckoo Hash Setting
   double factor = 1.5;
   size_t hash_num = 3;
   spu::psi::CuckooIndex::Options cuckoo_params{batch_number, 0, hash_num,
@@ -157,8 +164,6 @@ TEST_P(SealMultiPirTest, WithH2A) {
   std::future<std::vector<std::vector<uint32_t>>> pir_client_func = std::async(
       [&] { return mpir_client.DoMultiPirQuery(ctxs[1], query_index, true); });
 
-  // const auto pir_client_stop_time = std::chrono::system_clock::now();
-
   std::vector<std::vector<uint32_t>> random_mask = pir_service_func.get();
   std::vector<std::vector<uint32_t>> query_reply_bytes = pir_client_func.get();
 
@@ -166,6 +171,7 @@ TEST_P(SealMultiPirTest, WithH2A) {
   const DurationMillis pir_time = pir_end_time - pir_start_time;
 
   SPDLOG_INFO("pir time(online) : {} ms", pir_time.count());
+
   auto logt = 13;
   uint32_t mask = (1ULL << logt) - 1;
   for (size_t idx = 0; idx < query_reply_bytes.size(); ++idx) {
@@ -181,15 +187,8 @@ TEST_P(SealMultiPirTest, WithH2A) {
       [[maybe_unused]] auto h2a =
           mask & (random_mask[idx][item] + query_reply_bytes[idx][item]);
       EXPECT_EQ(query_db_bytes[item] >> 2, h2a >> 2);
-      // EXPECT_EQ(query_db_bytes[item], h2a);
-      // SPDLOG_INFO("{} {}", query_db_bytes[item], h2a);
     }
   }
 }
-
-INSTANTIATE_TEST_SUITE_P(Works_Instances, SealMultiPirTest,
-                         testing::Values(TestParams{100, 100000, 4096,
-                                                    4096})  //
-);
 
 }  // namespace spu::seal_pir

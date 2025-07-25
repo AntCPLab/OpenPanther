@@ -19,8 +19,8 @@ package(default_visibility = ["//visibility:public"])
 
 spu_cc_library(
     name = "bitwidth_change",
-    srcs = ["bitwidth_adjust_prot.cc"],
-    hdrs = ["bitwidth_adjust_prot.h"],
+    srcs = ["bitwidth_adjust.cc"],
+    hdrs = ["bitwidth_adjust.h"],
     deps = [
         "//libspu/mpc/cheetah/nonlinear:compare_prot",
         "//libspu/mpc/cheetah/nonlinear:truncate_prot",
@@ -191,16 +191,16 @@ spu_cc_test(
     name = "batch_min_test",
     srcs = ["batch_min_test.cc"],
     deps = [
-        ":batch_min_prot",
+        ":batch_min",
         "//libspu/mpc:factory",
         "//libspu/mpc/utils:simulate",
     ],
 )
 
 spu_cc_library(
-    name = "batch_min_prot",
-    srcs = ["batch_min_prot.cc"],
-    hdrs = ["batch_min_prot.h"],
+    name = "batch_min",
+    srcs = ["batch_min.cc"],
+    hdrs = ["batch_min.h"],
     deps = [
         ":bitwidth_change",
         "//libspu/mpc/cheetah:state",
@@ -224,8 +224,8 @@ spu_cc_library(
 
 spu_cc_library(
     name = "topk",
-    srcs = ["topk.cc"],
-    hdrs = ["topk.h"],
+    srcs = ["gc_topk.cc"],
+    hdrs = ["gc_topk.h"],
     deps = [
         "@com_github_emptoolkit_emp_sh2pc//:emp-sh2pc",
     ],
@@ -237,7 +237,7 @@ spu_cc_library(
     hdrs = ["common.h"],
     copts = AES_COPT_FLAGS,
     deps = [
-        ":batch_min_prot",
+        ":batch_min",
         ":bitwidth_change",
         ":dist_cmp",
         ":topk",
@@ -258,7 +258,7 @@ spu_cc_binary(
     srcs = ["panther_demo.cc"],
     copts = AES_COPT_FLAGS,
     deps = [
-        ":batch_min_prot",
+        ":batch_min",
         ":bitwidth_change",
         ":dist_cmp",
         ":topk",
@@ -279,7 +279,7 @@ spu_cc_binary(
     srcs = ["distance_benchmark.cc"],
     copts = AES_COPT_FLAGS,
     deps = [
-        ":batch_min_prot",
+        ":batch_min",
         ":bitwidth_change",
         ":dist_cmp",
         ":topk",
@@ -297,10 +297,10 @@ spu_cc_binary(
 
 spu_cc_binary(
     name = "topk_benchmark",
-    srcs = ["topk_benchmark.cc"],
+    srcs = ["mixed_topk_benchmark.cc"],
     copts = AES_COPT_FLAGS,
     deps = [
-        ":batch_min_prot",
+        ":batch_min",
         ":dist_cmp",
         ":topk",
         "//experimental/ann/fix_pir_customed:seal_mpir",
@@ -316,7 +316,7 @@ spu_cc_binary(
 
 spu_cc_binary(
     name = "topk_test",
-    srcs = ["topk_test.cc"],
+    srcs = ["gc_topk_test.cc"],
     copts = AES_COPT_FLAGS,
     deps = [
         ":topk",

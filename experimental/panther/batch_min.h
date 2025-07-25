@@ -2,7 +2,15 @@
 #include "libspu/mpc/cheetah/nonlinear/compare_prot.h"
 
 namespace panther {
-// class spu::mpc::cheetah::BasicOTProtocols;
+/**
+ * This protocol is used to compute the minimum value among multiple
+ * values in a batch.
+ *
+ * The comparison is implemented based on the Millionaire protocol in Cheetah
+ * Reference: "Cheetah : Lean and Fast Secure Two-Party Deep Neural
+ * Network Inference" (https://eprint.iacr.org/2022/207.pdf)
+ */
+
 class BatchMinProtocol {
  public:
   explicit BatchMinProtocol(const std::shared_ptr<spu::KernelEvalContext> &ctx,

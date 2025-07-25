@@ -1,6 +1,6 @@
-#include "batch_min_prot.h"
+#include "batch_min.h"
 
-#include "bitwidth_adjust_prot.h"
+#include "bitwidth_adjust.h"
 
 #include "libspu/core/type_util.h"
 #include "libspu/mpc/cheetah/nonlinear/truncate_prot.h"
@@ -53,12 +53,11 @@ spu::NdArrayRef BatchMinProtocol::Compute(const spu::NdArrayRef &inp,
   return tmp_res;
 }
 
-// input bitwidth : bitwidth
-// output bitwidth : outbitwidth
+// Input bitwidth : bitwidth
+// Output bitwidth : outbitwidth
 spu::NdArrayRef BatchMinProtocol::TruncAndReduce(const spu::NdArrayRef &inp,
                                                  int64_t bitwidth,
                                                  int64_t shift) {
-  // spu::NdArrayRef trun_value;
   auto trun_value = spu::mpc::cheetah::TiledDispatchOTFunc(
       ctx_.get(), inp,
       [&](const spu::NdArrayRef &input,
