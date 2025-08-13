@@ -1,5 +1,39 @@
-// Amazon
+#include "../protocol/common.h"
+#include "yacl/link/test_util.h"
 
+#include "libspu/mpc/utils/simulate.h"
+// hyparameters:
+#define TEST_DEEP1M
+// These parameter choices are taken from Appendix A of the SANNS paper for a
+// fair comparison.
+// Ref: https://www.usenix.org/system/files/sec20-chen-hao.pdf
+
+#ifdef TEST_SIFT
+const size_t pir_logt = 12;
+const size_t pir_fixt = 2;
+const size_t logt = 24;
+const size_t N = 4096;
+const size_t dis_N = 2048;
+const size_t compare_radix = 5;
+const size_t max_cluster_points = 20;
+const std::vector<int64_t> k_c = {50810, 25603, 9968, 3227, 29326};
+const std::vector<int64_t> group_bin_number = {458, 270, 178, 84, 262};
+const std::vector<int64_t> group_k_number = {50, 31, 19, 13, 10};
+const size_t total_points_num = 1000000;
+const uint32_t dims = 128;
+const size_t topk_k = 10;
+const size_t pointer_dc_bits = 8;
+const size_t cluster_dc_bits = 5;
+const size_t message_size = 3;
+const size_t ele_size = (dims + 2 * message_size) * max_cluster_points;
+const uint32_t MASK = (1 << logt) - 1;
+const uint32_t sum_k_c = 118934;
+const uint32_t total_cluster_size = 89608;
+
+#endif
+
+// Amazon
+#ifdef TEST_AMAZON
 const size_t pir_logt = 12;
 const size_t pir_fixt = 2;
 const size_t logt = 24;
@@ -19,14 +53,12 @@ const size_t cluster_dc_bits = 4;
 const size_t message_size = 3;
 const size_t ele_size = (dims + 2 * message_size) * max_cluster_points;
 const uint32_t MASK = (1 << logt) - 1;
-
-auto cluster_data = RandData(88044, dims);
-auto stash = RandIdData(8228, 1, total_points_num);
-auto ps = RandData(total_points_num, dims);
-auto ptoc = RandIdData(79816, max_cluster_points, total_points_num);
+const uint32_t sum_k_c = 88044;
+const uint32_t total_cluster_size = 79816;
+#endif
 
 // deep1m
-// hyparameters:
+#ifdef TEST_DEEP1M
 const size_t pir_fixt = 2;
 const size_t logt = 23;
 const size_t pir_logt = 12;
@@ -46,8 +78,7 @@ const size_t cluster_dc_bits = 5;
 const size_t message_size = 3;
 const size_t ele_size = (dims + 2 * message_size) * max_cluster_points;
 const uint32_t MASK = (1 << logt) - 1;
+const uint32_t sum_k_c = 115860;
+const uint32_t total_cluster_size = 90710;
 
-auto cluster_data = RandData(115860, dims);
-auto stash = RandIdData(25150, 1, total_points_num);
-auto ps = RandData(total_points_num, dims);
-auto ptoc = RandIdData(90710, max_cluster_points, total_points_num);
+#endif

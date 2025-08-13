@@ -1,4 +1,4 @@
-#include "experimental/panther/bitwidth_adjust.h"
+#include "bitwidth_adjust.h"
 
 #include "libspu/core/type.h"
 #include "libspu/mpc/cheetah/nonlinear/compare_prot.h"

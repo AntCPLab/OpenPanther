@@ -74,7 +74,7 @@ std::vector<uint32_t> DisClient::DecodeReply(
   for (size_t i = 0, count = 0; i < reply.size() && count < num_points; i++) {
     decryptor_->decrypt(reply[i], plain_reply[i]);
     // When using H2A, the noise budget is not applicable.
-    if (is_ss == 0) {
+    if (is_ss == false) {
       SPDLOG_INFO("Noise budget in response: {} bits",
                   decryptor_->invariant_noise_budget(reply[i]));
     }

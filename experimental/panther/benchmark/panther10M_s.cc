@@ -1,4 +1,4 @@
-#include "common.h"
+#include "protocol/common.h"
 #include "yacl/link/test_util.h"
 
 #include "libspu/mpc/utils/simulate.h"

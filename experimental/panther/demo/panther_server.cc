@@ -1,4 +1,4 @@
-#include "common.h"
+#include "../protocol/common.h"
 #include "yacl/link/test_util.h"
 
 #include "libspu/mpc/utils/simulate.h"
@@ -100,12 +100,16 @@ int main(int argc, char** argv) {
   auto distance_cmp_s = std::chrono::system_clock::now();
 
   auto query = dis_server.RecvQuery(dims);
-  auto response = dis_server.DoDistanceCmp(cluster_data, query);
+  auto response = dis_server.DoDistanceCmpWithH2A(cluster_data, query);
 
   auto distance_cmp_e = std::chrono::system_clock::now();
   auto dis_cmp_r1 = lctx->GetStats()->sent_actions.load();
   auto dis_cmp_c1 = lctx->GetStats()->sent_bytes.load();
   const DurationMillis dis_cmp_time = distance_cmp_e - distance_cmp_s;
+  SPDLOG_INFO("Distance cmp time: {} ms", dis_cmp_time.count());
+  SPDLOG_INFO("Distance server sent actions: {}, Distance comm: {} MB",
+              dis_cmp_r1 - dis_cmp_r0,
+              (dis_cmp_c1 - dis_cmp_c0) / 1024.0 / 1024.0);
   for (size_t i = 0; i < response.size(); i++) {
     uint32_t p_2 = 0;
     for (size_t j = 0; j < dims; j++) {
@@ -113,10 +117,6 @@ int main(int argc, char** argv) {
     }
     response[i] = (p_2 - 2 * response[i]) & MASK;
   }
-  SPDLOG_INFO("Distance cmp time: {} ms", dis_cmp_time.count());
-  SPDLOG_INFO("Distance server sent actions: {}, Distance comm: {} MB",
-              dis_cmp_r1 - dis_cmp_r0,
-              (dis_cmp_c1 - dis_cmp_c0) / 1024.0 / 1024.0);
 
   // Step(2): Argmin in each bin:
   int64_t total_bin_number = 0;
@@ -198,21 +198,20 @@ int main(int argc, char** argv) {
 
   // Step(5):Compute distance with points
   auto d2_start = lctx->GetStats()->sent_bytes.load();
-  auto dis_ser = dis_server.DoDistanceCmp(p, query);
+  auto dis_ser = dis_server.DoDistanceCmpWithH2A(p, query);
   auto d2_end = lctx->GetStats()->sent_bytes.load();
   SPDLOG_INFO("Point_distance comm: {} MB",
               (d2_end - d2_start) / 1024.0 / 1024.0);
-  std::vector<uint32_t> dis(p.size());
-  for (size_t i = 0; i < p.size(); i++) {
-    dis[i] = (p_2[i] - 2 * dis_ser[i] + 2 * fix_pir_s[i][0]) & MASK;
-  }
   auto dis_e = std::chrono::system_clock::now();
   const DurationMillis dis2_time = dis_e - pir_e;
   SPDLOG_INFO("Point_distance time: {} ms", dis2_time.count());
 
-  // Step(6): End topk computation
+  std::vector<uint32_t> dis(p.size());
+  for (size_t i = 0; i < p.size(); i++) {
+    dis[i] = (p_2[i] - 2 * dis_ser[i] + 2 * fix_pir_s[i][0]) & MASK;
+  }
 
-  auto end_topk_s = std::chrono::system_clock::now();
+  // Step(6): End topk computation
   size_t trun_c0 = lctx->GetStats()->sent_bytes.load();
   auto trun_dis = Truncate(dis, logt, pointer_dc_bits, kctx);
   size_t trun_c1 = lctx->GetStats()->sent_bytes.load();
@@ -227,6 +226,7 @@ int main(int argc, char** argv) {
   size_t id_bw = std::ceil(std::log2(total_points_num));
 
   auto end_topk0 = gc_io->counter;
+  auto end_topk_s = std::chrono::system_clock::now();
   gc_io->flush();
   gc_io->sync();
   GcEndTopk(trun_dis, pid, min_value, min_index, logt - pointer_dc_bits, id_bw,

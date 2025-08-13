@@ -1,4 +1,4 @@
-#include "experimental/panther/bitwidth_adjust.h"
+#include "experimental/panther/protocol/bitwidth_adjust.h"
 
 #include <random>
 

@@ -9,6 +9,7 @@ namespace panther {
  * The comparison is implemented based on the Millionaire protocol in Cheetah
  * Reference: "Cheetah : Lean and Fast Secure Two-Party Deep Neural
  * Network Inference" (https://eprint.iacr.org/2022/207.pdf)
+ * 
  */
 
 class BatchMinProtocol {

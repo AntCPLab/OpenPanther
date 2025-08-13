@@ -19,8 +19,8 @@ package(default_visibility = ["//visibility:public"])
 
 spu_cc_library(
     name = "bitwidth_change",
-    srcs = ["bitwidth_adjust.cc"],
-    hdrs = ["bitwidth_adjust.h"],
+    srcs = ["protocol/bitwidth_adjust.cc"],
+    hdrs = ["protocol/bitwidth_adjust.h"],
     deps = [
         "//libspu/mpc/cheetah/nonlinear:compare_prot",
         "//libspu/mpc/cheetah/nonlinear:truncate_prot",
@@ -31,7 +31,7 @@ spu_cc_library(
 
 spu_cc_test(
     name = "bitwidth_adjust_test",
-    srcs = ["bitwidth_adjust_test.cc"],
+    srcs = ["protocol/bitwidth_adjust_test.cc"],
     deps = [
         ":bitwidth_change",
         "//libspu/mpc:factory",
@@ -42,7 +42,7 @@ spu_cc_test(
 
 spu_cc_test(
     name = "dist_cmp_test",
-    srcs = ["dist_cmp_test.cc"],
+    srcs = ["protocol/dist_cmp_test.cc"],
     deps = [
         ":dist_cmp",
         "//libspu/mpc/cheetah/rlwe:lwe",
@@ -53,7 +53,7 @@ spu_cc_test(
 
 spu_cc_test(
     name = "dist_cmp_ss_test",
-    srcs = ["dist_cmp_ss_test.cc"],
+    srcs = ["protocol/dist_cmp_ss_test.cc"],
     deps = [
         ":dist_cmp",
         "//libspu/mpc/cheetah:state",
@@ -65,29 +65,75 @@ spu_cc_test(
     ],
 )
 
-spu_cc_binary(
-    name = "util_test",
-    srcs = ["util_test.cc"],
-    copts = AES_COPT_FLAGS,
-    data = [
-        "dataset/centrios.txt",
-        "dataset/dataset.txt",
-        "dataset/neighbors.txt",
-        "dataset/ptoc.txt",
-        "dataset/stash.txt",
-        "dataset/test.txt",
-    ],
+spu_cc_test(
+    name = "batch_min_test",
+    srcs = ["protocol/batch_min_test.cc"],
     deps = [
-        ":common",
-        "//libspu/mpc/cheetah/rlwe:lwe",
+        ":batch_min",
+        "//libspu/mpc:factory",
         "//libspu/mpc/utils:simulate",
+    ],
+)
+
+spu_cc_library(
+    name = "batch_min",
+    srcs = ["protocol/batch_min.cc"],
+    hdrs = ["protocol/batch_min.h"],
+    deps = [
+        ":bitwidth_change",
+        "//libspu/mpc/cheetah:state",
+        "//libspu/mpc/cheetah/nonlinear:compare_prot",
+        "//libspu/mpc/cheetah/nonlinear:equal_prot",
+        "//libspu/mpc/cheetah/nonlinear:truncate_prot",
+    ],
+)
+
+spu_cc_library(
+    name = "dist_cmp",
+    srcs = ["protocol/dist_cmp.cc"],
+    hdrs = ["protocol/dist_cmp.h"],
+    deps = [
+        "//libspu/mpc/cheetah/arith:arith_comm",
+        "//libspu/mpc/cheetah/rlwe:modswitch_helper",
         "@com_github_microsoft_seal//:seal",
+        "@yacl//yacl/utils:parallel",
+    ],
+)
+
+spu_cc_library(
+    name = "topk",
+    srcs = ["protocol/gc_topk.cc"],
+    hdrs = ["protocol/gc_topk.h"],
+    deps = [
+        "@com_github_emptoolkit_emp_sh2pc//:emp-sh2pc",
+    ],
+)
+
+spu_cc_library(
+    name = "common",
+    srcs = ["protocol/common.cc"],
+    hdrs = ["protocol/common.h"],
+    copts = AES_COPT_FLAGS,
+    deps = [
+        ":batch_min",
+        ":bitwidth_change",
+        ":dist_cmp",
+        ":topk",
+        "//experimental/panther/protocol/customize_pir:seal_mpir",
+        "//libspu/device:io",
+        "//libspu/mpc/cheetah:state",
+        "//libspu/psi/cryptor:sodium_curve25519_cryptor",
+        "@com_github_openssl_openssl//:openssl",
+        "@com_google_absl//absl/strings",
+        "@llvm-project//llvm:Support",
+        "@yacl//yacl/base:buffer",
+        "@yacl//yacl/link:factory",
     ],
 )
 
 spu_cc_binary(
     name = "panther_client",
-    srcs = ["panther_client.cc"],
+    srcs = ["demo/panther_client.cc"],
     copts = AES_COPT_FLAGS,
     data = [
         "dataset/neighbors.txt",
@@ -102,8 +148,29 @@ spu_cc_binary(
 )
 
 spu_cc_binary(
-    name = "panther_client_random",
-    srcs = ["panther_client_random.cc"],
+    name = "panther_server",
+    srcs = ["demo/panther_server.cc"],
+    copts = AES_COPT_FLAGS,
+    data = [
+        "dataset/centrios.txt",
+        "dataset/dataset.txt",
+        "dataset/ptoc.txt",
+        "dataset/stash.txt",
+    ],
+    deps = [
+        ":common",
+        "//libspu/mpc/cheetah/rlwe:lwe",
+        "//libspu/mpc/utils:simulate",
+        "@com_github_microsoft_seal//:seal",
+    ],
+)
+
+spu_cc_binary(
+    name = "random_panther_client",
+    srcs = [
+        "benchmark/random_panther_client.cc",
+        "benchmark/random_panther_client.h",
+    ],
     copts = AES_COPT_FLAGS,
     deps = [
         ":common",
@@ -126,24 +193,6 @@ spu_cc_binary(
 )
 
 spu_cc_binary(
-    name = "panther_server",
-    srcs = ["panther_server.cc"],
-    copts = AES_COPT_FLAGS,
-    data = [
-        "dataset/centrios.txt",
-        "dataset/dataset.txt",
-        "dataset/ptoc.txt",
-        "dataset/stash.txt",
-    ],
-    deps = [
-        ":common",
-        "//libspu/mpc/cheetah/rlwe:lwe",
-        "//libspu/mpc/utils:simulate",
-        "@com_github_microsoft_seal//:seal",
-    ],
-)
-
-spu_cc_binary(
     name = "panther10M_s",
     srcs = ["panther10M_s.cc"],
     copts = AES_COPT_FLAGS,
@@ -156,8 +205,11 @@ spu_cc_binary(
 )
 
 spu_cc_binary(
-    name = "panther_server_random",
-    srcs = ["panther_server_random.cc"],
+    name = "random_panther_server",
+    srcs = [
+        "benchmark/random_panther_server.cc",
+        "benchmark/random_panther_server.h",
+    ],
     copts = AES_COPT_FLAGS,
     deps = [
         ":common",
@@ -187,72 +239,6 @@ spu_cc_binary(
     ],
 )
 
-spu_cc_test(
-    name = "batch_min_test",
-    srcs = ["batch_min_test.cc"],
-    deps = [
-        ":batch_min",
-        "//libspu/mpc:factory",
-        "//libspu/mpc/utils:simulate",
-    ],
-)
-
-spu_cc_library(
-    name = "batch_min",
-    srcs = ["batch_min.cc"],
-    hdrs = ["batch_min.h"],
-    deps = [
-        ":bitwidth_change",
-        "//libspu/mpc/cheetah:state",
-        "//libspu/mpc/cheetah/nonlinear:compare_prot",
-        "//libspu/mpc/cheetah/nonlinear:equal_prot",
-        "//libspu/mpc/cheetah/nonlinear:truncate_prot",
-    ],
-)
-
-spu_cc_library(
-    name = "dist_cmp",
-    srcs = ["dist_cmp.cc"],
-    hdrs = ["dist_cmp.h"],
-    deps = [
-        "//libspu/mpc/cheetah/arith:arith_comm",
-        "//libspu/mpc/cheetah/rlwe:modswitch_helper",
-        "@com_github_microsoft_seal//:seal",
-        "@yacl//yacl/utils:parallel",
-    ],
-)
-
-spu_cc_library(
-    name = "topk",
-    srcs = ["gc_topk.cc"],
-    hdrs = ["gc_topk.h"],
-    deps = [
-        "@com_github_emptoolkit_emp_sh2pc//:emp-sh2pc",
-    ],
-)
-
-spu_cc_library(
-    name = "common",
-    srcs = ["common.cc"],
-    hdrs = ["common.h"],
-    copts = AES_COPT_FLAGS,
-    deps = [
-        ":batch_min",
-        ":bitwidth_change",
-        ":dist_cmp",
-        ":topk",
-        "//experimental/panther/customize_pir:seal_mpir",
-        "//libspu/device:io",
-        "//libspu/mpc/cheetah:state",
-        "//libspu/psi/cryptor:sodium_curve25519_cryptor",
-        "@com_github_openssl_openssl//:openssl",
-        "@com_google_absl//absl/strings",
-        "@llvm-project//llvm:Support",
-        "@yacl//yacl/base:buffer",
-        "@yacl//yacl/link:factory",
-    ],
-)
-
 spu_cc_binary(
     name = "panther_demo",
     srcs = ["panther_demo.cc"],
@@ -262,7 +248,7 @@ spu_cc_binary(
         ":bitwidth_change",
         ":dist_cmp",
         ":topk",
-        "//experimental/panther/customize_pir:seal_mpir",
+        "//experimental/panther/protocol/customize_pir:seal_mpir",
         "//libspu/device:io",
         "//libspu/mpc/cheetah:state",
         "//libspu/psi/cryptor:sodium_curve25519_cryptor",
@@ -283,7 +269,7 @@ spu_cc_binary(
         ":bitwidth_change",
         ":dist_cmp",
         ":topk",
-        "//experimental/panther/customize_pir:seal_mpir",
+        "//experimental/panther/panther/customize_pir:seal_mpir",
         "//libspu/device:io",
         "//libspu/mpc/cheetah:state",
         "//libspu/psi/cryptor:sodium_curve25519_cryptor",
@@ -303,7 +289,7 @@ spu_cc_binary(
         ":batch_min",
         ":dist_cmp",
         ":topk",
-        "//experimental/panther/customize_pir:seal_mpir",
+        "//experimental/panther/protocol/customize_pir:seal_mpir",
         "//libspu/device:io",
         "//libspu/mpc/cheetah:state",
         "//libspu/psi/cryptor:sodium_curve25519_cryptor",

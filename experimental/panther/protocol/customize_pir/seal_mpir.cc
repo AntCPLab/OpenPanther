@@ -22,7 +22,7 @@
 
 #include "spdlog/spdlog.h"
 
-#include "experimental/panther/customize_pir/serializable.pb.h"
+#include "experimental/panther/protocol/customize_pir/serializable.pb.h"
 
 namespace spu::seal_pir {
 

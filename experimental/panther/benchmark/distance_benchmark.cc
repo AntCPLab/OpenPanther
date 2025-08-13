@@ -39,6 +39,8 @@ llvm::cl::opt<uint32_t> Rank("rank", llvm::cl::init(0),
 llvm::cl::opt<uint32_t> EmpPort("emp_port", llvm::cl::init(7111),
                                 llvm::cl::desc("emp port"));
 
+const size_t repeat_times = 50;
+
 std::shared_ptr<yacl::link::Context> MakeLink(const std::string& parties,
                                               size_t rank) {
   yacl::link::ContextDesc lctx_desc;
@@ -69,7 +71,7 @@ std::vector<std::vector<uint32_t>> ReadClusterPoint(size_t point_number,
   for (size_t i = 0; i < point_number; i++) {
     for (size_t j = 0; j < dim; j++) {
       // Generate random cluster pointer
-      points[i][j] = 1 % 256;
+      points[i][j] = rand() % 256;
     }
   }
   return points;
@@ -78,7 +80,7 @@ std::vector<std::vector<uint32_t>> ReadClusterPoint(size_t point_number,
 std::vector<uint32_t> ReadQuery(size_t num_dims) {
   std::vector<uint32_t> q(num_dims);
   for (size_t i = 0; i < num_dims; i++) {
-    q[i] = 1 % 256;
+    q[i] = rand() % 256;
   }
   return q;
 }
@@ -88,18 +90,18 @@ int main(int argc, char** argv) {
   yacl::set_num_threads(32);
   srand(0);
   const size_t logt = 24;
+  // FHE poly degree
   const size_t dis_N = 2048;
   const size_t dims = 128;
   const size_t cluster_num = 100000;
-  // Argmin:
 
   // context init
   auto hctx = MakeSPUContext();
   auto kctx = std::make_shared<spu::KernelEvalContext>(hctx.get());
   auto lctx = hctx->lctx();
   auto rank = Rank.getValue();
-  lctx->SetThrottleWindowSize(0);
 
+  lctx->SetThrottleWindowSize(0);
   if (rank == 0) {
     // prepare mpir client
     // auto to = lctx->NextRank();
@@ -109,84 +111,52 @@ int main(int argc, char** argv) {
     // prepare distance compute client
     // (HE parameters for distance calculation are independent of the PIR)
 
+    auto q = ReadQuery(dims);
     auto total_time_s = std::chrono::system_clock::now();
-    // Distance Compute
     auto r0 = lctx->GetStats()->sent_actions.load();
     auto c0 = lctx->GetStats()->sent_bytes.load();
-    auto q = ReadQuery(dims);
-    dis_client.GenerateQuery(q);
 
-    // shape: (total_bin_number, max_bin_size);
-    o dis = dis_client.RecvReply(cluster_num);
+    for (size_t i = 0; i < repeat_times; i++) {
+      dis_client.GenerateQuery(q);
+      auto dis = dis_client.RecvReplySS(cluster_num);
+    }
+
     auto r1 = lctx->GetStats()->sent_actions.load();
     auto c1 = lctx->GetStats()->sent_bytes.load();
 
     auto distance_cmp_e = std::chrono::system_clock::now();
 
-    const DurationMillis dis_cmp_time = distance_cmp_e - total_time_s;
-    SPDLOG_INFO("Distance cmp time: {} ms", dis_cmp_time.count());
-    SPDLOG_INFO("Distance client sent actions: {}, Distance comm: {} MB",
-                r1 - r0, (c1 - c0) / 1024.0 / 1024.0);
-
-    emp::NetIO* gc_io = new emp::NetIO(rank == ALICE ? nullptr : "127.0.0.1",
-                                       EmpPort.getValue());
-    gc_io->sync();
-
-    lctx->SetThrottleWindowSize(0);
-
-    total_time_s = std::chrono::system_clock::now();
-    r0 = lctx->GetStats()->sent_actions.load();
-    c0 = lctx->GetStats()->sent_bytes.load();
-    q = ReadQuery(dims);
-    dis_client.GenerateQuery(q);
-
-    dis = dis_client.RecvReply(cluster_num);
-    r1 = lctx->GetStats()->sent_actions.load();
-    c1 = lctx->GetStats()->sent_bytes.load();
-
-    distance_cmp_e = std::chrono::system_clock::now();
-
     const DurationMillis dis_cmp_time_2 = distance_cmp_e - total_time_s;
-    SPDLOG_INFO("Distance cmp time: {} ms", dis_cmp_time_2.count());
+    SPDLOG_INFO("Distance cmp time: {} ms",
+                dis_cmp_time_2.count() / repeat_times);
     SPDLOG_INFO("Distance client sent actions: {}, Distance comm: {} MB",
-                r1 - r0, (c1 - c0) / 1024.0 / 1024.0);
+                (r1 - r0) / repeat_times,
+                (c1 - c0) / 1024.0 / 1024.0 / repeat_times);
   } else {
     DisServer dis_server(dis_N, logt, lctx);
     dis_server.RecvPublicKey();
-
     auto total_time_s = std::chrono::system_clock::now();
+
+    auto ps = ReadClusterPoint(cluster_num, dims);
+
     auto r0 = lctx->GetStats()->sent_actions.load();
     auto c0 = lctx->GetStats()->sent_bytes.load();
-    auto ps = ReadClusterPoint(cluster_num, dims);
-    auto q = dis_server.RecvQuery(dims);
-    auto dis = dis_server.DoDistanceCmp(ps, q);
+
+    for (size_t i = 0; i < repeat_times; i++) {
+      auto q = dis_server.RecvQuery(dims);
+      auto dis = dis_server.DoDistanceCmpWithH2A(ps, q);
+    }
+
     auto r1 = lctx->GetStats()->sent_actions.load();
     auto c1 = lctx->GetStats()->sent_bytes.load();
     auto distance_cmp_e = std::chrono::system_clock::now();
     const DurationMillis dis_cmp_time = distance_cmp_e - total_time_s;
-    SPDLOG_INFO("Distance cmp time: {} ms", dis_cmp_time.count());
+
+    SPDLOG_INFO("Distance cmp time: {} ms",
+                dis_cmp_time.count() / repeat_times);
     SPDLOG_INFO("Distance server sent actions: {}, Distance comm: {} MB",
-                r1 - r0, (c1 - c0) / 1024.0 / 1024.0);
-
-    emp::NetIO* gc_io = new emp::NetIO(rank == ALICE ? nullptr : "127.0.0.1",
-                                       EmpPort.getValue());
-    gc_io->sync();
-
-    lctx->SetThrottleWindowSize(0);
-    total_time_s = std::chrono::system_clock::now();
-    r0 = lctx->GetStats()->sent_actions.load();
-    c0 = lctx->GetStats()->sent_bytes.load();
-    ps = ReadClusterPoint(cluster_num, dims);
-    q = dis_server.RecvQuery(dims);
-    dis = dis_server.DoDistanceCmp(ps, q);
-
-    r1 = lctx->GetStats()->sent_actions.load();
-    c1 = lctx->GetStats()->sent_bytes.load();
-    distance_cmp_e = std::chrono::system_clock::now();
-    const DurationMillis dis_cmp_time_2 = distance_cmp_e - total_time_s;
-    SPDLOG_INFO("Distance cmp time: {} ms", dis_cmp_time_2.count());
-    SPDLOG_INFO("Distance server sent actions: {}, Distance comm: {} MB",
-                r1 - r0, (c1 - c0) / 1024.0 / 1024.0);
+                (r1 - r0) / repeat_times,
+                (c1 - c0) / 1024.0 / 1024.0 / repeat_times);
   }
 
   lctx->WaitLinkTaskFinish();
