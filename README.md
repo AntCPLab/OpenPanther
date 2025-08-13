@@ -15,13 +15,13 @@ We provide a random input version and real input version for end-to-end evaluati
 (The initial compilation may take a long time.)
 The default parameters are for the SIFT dataset.
 ```
-bazel build //experimental/ann:panther_client_random
-bazel build //experimental/ann:panther_server_random
+bazel build -c opt //experimental/panther:random_panther_client
+bazel build -c opt //experimental/panther:random_panther_server
 ```
 ### Execute Random Version  
 ```
-bazel run //experimental/ann:panther_client_random
-bazel run //experimental/ann:panther_server_random
+bazel run //experimental/panther:random_panther_client
+bazel run //experimental/panther:random_panther_server
 ```
 
 
@@ -30,28 +30,28 @@ bazel run //experimental/ann:panther_server_random
 We provid adequate unit test in our repo.
 ```
 # Distance Compute
-bazel run //experimental/ann:dist_cmp_test
-bazel run //experimental/ann:ss_dist_cmp_test
+bazel run //experimental/panther:dist_cmp_test
+bazel run //experimental/panther:ss_dist_cmp_test
 ```
 
 ```
 # Customed Batch PIR
-bazel run //experimenta/ann/fix_pir_customed:seal_mpir_test
+bazel run //experimenta/panther/fix_pir_customed:seal_mpir_test
 ```
 
 ```
 # SS-based Min
-bazel run //experimental/ann:batch_argmax_test
+bazel run //experimental/panther:batch_argmax_test
 
 # Trunc and Extend
-bazel run //experimental/ann:bitwidth_change_test
+bazel run //experimental/panther:bitwidth_adjust_test
 ``` 
 ```
 # GC-based top-k
 # follow emp-toolkit style
-bazel run //experimental/ann:test_topk 1 1111 &
-bazel run //experimental/ann:test_topk 2 1111
+bazel run //experimental/panther:test_topk 1 1111 &
+bazel run //experimental/panther:test_topk 2 1111
 ```
 
 
-The real input version is `experimental/ann/panther_client` and `experimental/ann/panther_server`. We are finding a good way to provide the dataset and $k$-means model to make the real ipnut version easy to run. 
+The real input version is `experimental/panther/panther_client` and `experimental/panther/panther_server`. We are finding a good way to provide the dataset and $k$-means model to make the real ipnut version easy to run. 
