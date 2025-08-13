@@ -1,5 +1,5 @@
 # devtools
-/experimental/ann/dataset
+/experimental/panther/dataset
 .circleci/
 .github/
 .vscode/

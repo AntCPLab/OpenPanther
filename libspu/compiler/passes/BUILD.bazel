@@ -271,7 +271,7 @@ spu_cc_library(
 
 spu_cc_library(
     name = "partial_sort_to_topk",
-    srcs = ["partial_sort_to_topk.cc"],
+    srcs = ["partial_sort_to_gc_topk.cc"],
     hdrs = ["passes.h"],
     deps = [
         ":pass_details",
