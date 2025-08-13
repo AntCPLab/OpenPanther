@@ -42,9 +42,6 @@ inline T CeilDiv(T a, T b) {
   return (a + b - 1) / b;
 }
 
-// template <typename T>
-// T CeilDiv(T a, T b);
-
 template <typename T>
 size_t ZipArray(absl::Span<const T> inp, size_t bit_width, absl::Span<T> oup) {
   size_t width = sizeof(T) * 8;
