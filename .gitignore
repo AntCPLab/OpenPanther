@@ -1,5 +1,6 @@
 # devtools
-/experimental/panther/dataset
+/experimental/panther/dataset/*
+!/experimental/panther/dataset/.gitkeep
 .circleci/
 .github/
 .vscode/
