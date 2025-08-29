@@ -43,8 +43,8 @@ struct TestParams {
 class SealMultiPirTest : public testing::TestWithParam<TestParams> {};
 INSTANTIATE_TEST_SUITE_P(Works_Instances, SealMultiPirTest,
                          testing::Values(
-                             // TestParams{100, 100000, 4096, 4096},
-                             TestParams{50, 100000, 4096, 4096}));  //
+                             // TestParams{100, 100000, 4096, 4096}));
+                             TestParams{183, 450000, 4080, 4096}));  //
 
 using DurationMillis = std::chrono::duration<double, std::milli>;
 
@@ -59,7 +59,7 @@ std::vector<uint8_t> GenerateDbData(TestParams params) {
   for (uint64_t i = 0; i < params.element_number; i++) {
     for (uint64_t j = 0; j < params.element_size; j++) {
       // ToFix(ljy) ? remove magic number
-      auto val = gen() % 2048;
+      uint32_t val = gen() % 2048;
       // Padding each item with 0b01
       val = (val << 2) + 1;
       db_raw_data[(i * params.element_size) + j] = val;
@@ -186,7 +186,7 @@ TEST_P(SealMultiPirTest, WithH2A) {
     for (size_t item = 0; item < query_reply_bytes[idx].size(); item++) {
       [[maybe_unused]] auto h2a =
           mask & (random_mask[idx][item] + query_reply_bytes[idx][item]);
-      EXPECT_EQ(query_db_bytes[item] >> 2, h2a >> 2);
+      EXPECT_EQ(h2a >> 2, query_db_bytes[item] >> 2);
     }
   }
 }

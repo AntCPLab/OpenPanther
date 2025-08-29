@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "experimental/panther/customize_pir/seal_pir.h"
+#include "experimental/panther/protocol/customize_pir/seal_pir.h"
 
 #include <chrono>
 #include <memory>
@@ -67,12 +67,12 @@ TEST_P(SealPirTest, Works) {
       "N: {}, element size: {} coeffs , element_number: 2^{:.2f} = {}, "
       "query_size(Indistinguishable degree) {}",
       n, params.element_size, std::log2(params.element_number),
-      params.element_number, params.query_size);
+      params.element_number);
 
   std::vector<uint8_t> db_data = GenerateDbData(params);
 
   spu::seal_pir::SealPirOptions options{n, params.element_number,
-                                        params.element_size, params.query_size};
+                                        params.element_size};
   spu::seal_pir::SealPirClient client(options);
 
   std::shared_ptr<IDbPlaintextStore> plaintext_store =
@@ -134,6 +134,6 @@ TEST_P(SealPirTest, Works) {
 }
 
 INSTANTIATE_TEST_SUITE_P(Works_Instances, SealPirTest,
-                         testing::Values(TestParams{4096, 2048, 20 * 128}));
+                         testing::Values(TestParams{4096, 4096, 4080}));
 
 }  // namespace spu::seal_pir

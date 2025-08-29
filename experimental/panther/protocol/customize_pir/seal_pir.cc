@@ -625,7 +625,7 @@ std::vector<seal::Plaintext> SealPirServer::SetPublicDatabase(
   db_vec.reserve(total_ele_number);
   // SPDLOG_INFO("{} {}", total_ele_number, num_of_plaintexts);
   // byte offset
-  uint32_t offset = 0;
+  uint64_t offset = 0;
   for (uint64_t i = 0; i < total_ele_number; i++) {
     // std::cout << i << std::endl;
     uint64_t process_bytes = options_.element_size * 4;
@@ -1026,9 +1026,10 @@ std::vector<seal::Ciphertext> SealPirServer::GenerateReplyCustomedCompress(
       yacl::parallel_for(0, product, [&](int64_t begin, int64_t end) {
         for (int k = begin; k < end; k++) {
           uint64_t j = 0;
-          while (db_id_[k + j * product] == UINT64_MAX) {
-            j++;
-          }
+          // (ljy:) fix add zero ciphertext
+          // while (db_id_[k + j * product] == UINT64_MAX) {
+          //   j++;
+          // }
           auto index = db_id_[k + j * product];
           evaluator_[i]->multiply_plain(
               expanded_query[i][j], (*c_db_vec_)[index], intermediateCtxts[k]);
@@ -1559,7 +1560,7 @@ void SealPirServer::DoPirAnswer(
 // TODO(ljy): clean H2A
 struct SealPirServer::Impl : public spu::mpc::cheetah::EnableCPRNG {
  public:
-  Impl() {};
+  Impl(){};
 };
 
 void SealPirServer::DecodePolyToVector(seal::Plaintext &poly,

@@ -148,6 +148,22 @@ spu_cc_binary(
 )
 
 spu_cc_binary(
+    name = "panther_client_deep10M",
+    srcs = ["demo/panther_client_deep10M.cc"],
+    copts = AES_COPT_FLAGS,
+    data = [
+        "dataset/deep10M_neighbors.txt",
+        "dataset/deep10M_test.txt",
+    ],
+    deps = [
+        ":common",
+        "//libspu/mpc/cheetah/rlwe:lwe",
+        "//libspu/mpc/utils:simulate",
+        "@com_github_microsoft_seal//:seal",
+    ],
+)
+
+spu_cc_binary(
     name = "panther_server",
     srcs = ["demo/panther_server.cc"],
     copts = AES_COPT_FLAGS,
@@ -156,6 +172,24 @@ spu_cc_binary(
         "dataset/dataset.txt",
         "dataset/ptoc.txt",
         "dataset/stash.txt",
+    ],
+    deps = [
+        ":common",
+        "//libspu/mpc/cheetah/rlwe:lwe",
+        "//libspu/mpc/utils:simulate",
+        "@com_github_microsoft_seal//:seal",
+    ],
+)
+
+spu_cc_binary(
+    name = "panther_server_deep10M",
+    srcs = ["demo/panther_server_deep10M.cc"],
+    copts = AES_COPT_FLAGS,
+    data = [
+        "dataset/deep10M_centroids.txt",
+        "dataset/deep10M_dataset.txt",
+        "dataset/deep10M_ptoc.txt",
+        "dataset/deep10M_stash.txt",
     ],
     deps = [
         ":common",
