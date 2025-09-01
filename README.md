@@ -143,7 +143,7 @@ We provide two datasets, which are sourced from [ann-benchmarks](https://github.
 ⚠️ **Note**: The original deep1B provides neighbors based on angular distance. In our code, we have recomputed the neighbors under Euclidean distance using a linear scan.
 <a id="sec-kmeans"></a>
 ### $k$-means Algorithm
-We have reproduced the k-means clustering algorithm from [SANNS](), where the implementation of the k-means clustering component relies on the [FAISS](https://github.com/facebookresearch/faiss) library, a commonly used library in ANNS.
+We have reproduced the k-means clustering algorithm from [SANNS](https://www.usenix.org/conference/usenixsecurity20/presentation/chen-hao), where the implementation of the k-means clustering component relies on the [FAISS](https://github.com/facebookresearch/faiss) library, a commonly used library in ANNS.
 #### Dependencies
 We provides the dependencies for dataset processing and plaintext 
 k-means algorithm here.   
