@@ -4,10 +4,10 @@
 #include <random>
 #include <vector>
 
-#include "dist_cmp.h"
+#include "../protocol/dist_cmp.h"
 // #include "gtest/gtest.h"
 #include "yacl/link/test_util.h"
-const std::vector<int64_t> k_c = {50810, 25603, 9968, 3227, 29326};
+const std::vector<int64_t> k_c = {49810, 25603, 8968, 2746,  18722};
 const std::vector<int64_t> group_bin_number = {458, 270, 178, 84, 262};
 const std::vector<int64_t> group_k_number = {50, 31, 19, 13, 10};
 
@@ -45,12 +45,12 @@ vector<uint32_t> distance_compute(vector<uint32_t> &q,
   size_t n = ps.size();
   size_t points_dim = q.size();
   auto ctxs = yacl::link::test::SetupWorld(2);
-  sanns::DisClient client(N, logt, ctxs[0]);
-  sanns::DisServer server(N, logt, ctxs[1]);
+  panther::DisClient client(N, logt, ctxs[0]);
+  panther::DisServer server(N, logt, ctxs[1]);
   client.GenerateQuery(q);
   auto query = server.RecvQuery(points_dim);
-  auto response = server.DoDistanceCmp(ps, query);
-  auto vec_reply = client.RecvReply(n);
+  auto response = server.DoDistanceCmpWithH2A(ps, query);
+  auto vec_reply = client.RecvReplySS(n);
   const uint32_t MASK = (1 << logt) - 1;
   vector<uint32_t> value(n);
   for (size_t i = 0; i < n; i++) {
@@ -191,21 +191,18 @@ uint32_t knns(vector<uint32_t> &q, vector<vector<uint32_t>> &ps,
     for (size_t d = 0; d < 128; d++) {
       dis += (q[d] - ps[id][d]) * (q[d] - ps[id][d]);
     }
-    // std::cout << "Distance: " << dis;
-    // std::cout << " Id: " << v_id[i].second << " ";
   }
-  // std::cout << std::endl;
   return correct;
 }
 // Only for test accuracy
 int main() {
   std::srand(0);
-  auto ps = read_data(1000000, 128, "dataset/dataset.txt");
-  auto cluster_data = read_data(118934, 128, "dataset/centrios.txt");
-  auto test_data = read_data(10000, 128, "dataset/test.txt");
-  auto ptoc = read_data(89608, 20, "dataset/ptoc.txt");
-  auto neighbors = read_data(10000, 10, "dataset/neighbors.txt");
-  auto stash = read_data(29326, 1, "dataset/stash.txt");
+  auto ps = read_data(1000000, 128, "dataset/sift_dataset.txt");
+  auto cluster_data = read_data(105849, 128, "dataset/sift_centroids.txt");
+  auto test_data = read_data(10000, 128, "dataset/sift_test.txt");
+  auto ptoc = read_data(87127, 20, "dataset/sift_ptoc.txt");
+  auto neighbors = read_data(10000, 10, "dataset/sift_neighbors.txt");
+  auto stash = read_data(18722, 1, "dataset/sift_stash.txt");
   uint32_t sum = 0;
   uint32_t all = 0;
   for (size_t i = 0; i < 10000; i++) {

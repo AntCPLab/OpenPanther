@@ -1,4 +1,4 @@
-#include "protocol/common.h"
+#include "../protocol/common.h"
 #include "yacl/link/test_util.h"
 
 #include "libspu/mpc/utils/simulate.h"
@@ -103,7 +103,7 @@ int main(int argc, char** argv) {
   auto distance_cmp_s = std::chrono::system_clock::now();
 
   auto query = dis_server.RecvQuery(dims);
-  auto response = dis_server.DoDistanceCmp(cluster_data, query);
+  auto response = dis_server.DoDistanceCmpWithH2A(cluster_data, query);
 
   auto distance_cmp_e = std::chrono::system_clock::now();
   auto dis_cmp_r1 = lctx->GetStats()->sent_actions.load();
@@ -210,7 +210,7 @@ int main(int argc, char** argv) {
 
   // Step(5):Compute distance with points
   auto d2_start = lctx->GetStats()->sent_bytes.load();
-  auto dis_ser = dis_server.DoDistanceCmp(p, query);
+  auto dis_ser = dis_server.DoDistanceCmpWithH2A(p, query);
   auto d2_end = lctx->GetStats()->sent_bytes.load();
   SPDLOG_INFO("Point_distance comm: {} MB",
               (d2_end - d2_start) / 1024.0 / 1024.0);

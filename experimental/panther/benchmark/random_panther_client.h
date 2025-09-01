@@ -4,7 +4,7 @@
 #include "libspu/mpc/utils/simulate.h"
 
 // hyparameters:
-#define TEST_DEEP1M
+// #define TEST_DEEP1M
 // These parameter choices are taken from Appendix A of the SANNS paper for a
 // fair comparison.
 // Ref: https://www.usenix.org/system/files/sec20-chen-hao.pdf
@@ -17,7 +17,7 @@ const size_t N = 4096;
 const size_t dis_N = 2048;
 const size_t compare_radix = 5;
 const size_t max_cluster_points = 20;
-const std::vector<int64_t> k_c = {50810, 25603, 9968, 3227, 29326};
+const std::vector<int64_t> k_c = {50810, 25603, 9968, 4227, 31412};
 const std::vector<int64_t> group_bin_number = {458, 270, 178, 84, 262};
 const std::vector<int64_t> group_k_number = {50, 31, 19, 13, 10};
 const size_t total_points_num = 1000000;

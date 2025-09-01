@@ -1,4 +1,6 @@
 import os
+os.environ["OMP_NUM_THREADS"] = "8"
+os.environ["MKL_NUM_THREADS"] = "8"
 import torch
 from torch.utils import data
 import numpy as np
@@ -13,15 +15,24 @@ import sys
 # https://www.usenix.org/conference/usenixsecurity20/presentation/chen-hao
 
 current_dir = os.getcwd()
-deep_file_path = os.path.join(current_dir, "deep-image-96-euclidean.hdf5")
-deep_h5py = h5py.File(deep_file_path, "r")
+data_dir = current_dir + "/experimental/panther/dataset/"
+dataset = sys.argv[1]
+if dataset == "deep10M":
+    file_name = "deep-image-96-angular.hdf5"
+elif dataset == "sift":
+    file_name = "sift-128-euclidean.hdf5"
+else:
+    raise ValueError(f"Dataset '{dataset}' is not supported.")
+file_path = os.path.join(data_dir, file_name)
+data_h5py = h5py.File(file_path, "r")
 
-train_x = deep_h5py['train'][:]
-test_x = deep_h5py['test'][:]
+train_x = data_h5py['train'][:]
+test_x = data_h5py['test'][:]
 
 # quantize to 8-bit int
-train_x = ((train_x + 1.0) * 127.5 + 0.5).astype(int)
-test_x = ((test_x + 1.0) * 127.5 + 0.5).astype(int)
+if dataset == "deep10M":
+    train_x = ((train_x + 1.0) * 127.5 + 0.5).astype(int)
+    test_x = ((test_x + 1.0) * 127.5 + 0.5).astype(int)
 train_x = torch.from_numpy(train_x)
 test_x = torch.from_numpy(test_x)
 
@@ -38,27 +49,29 @@ res = torch.from_numpy(res)
 # np.savetxt("neighbors.txt", res, fmt="%d", delimiter=" ")
 
 # ==============================
-# Clustering parameters for deep1M
-# kmeans_niters = 1
-# max_points_per_cluster = 22
-# verbose = True
-# frac = 0.56
-# stash_size = 25150
-# step = 1000
-# init_n_c = [55000, 26904, 14793, 8501]
-# init_ncentroids = int(init_n_c[0] * 1.1)
+# Clustering parameters for sift
+if dataset == "sift":
+    kmeans_niters = 5
+    max_points_per_cluster = 20
+    verbose = True
+    frac = 0.56
+    stash_size = 25150
+    step = 1000
+    init_n_c = [55000, 26904, 14793, 8501]
+    init_ncentroids = int(init_n_c[0] * 1 )
 # ==============================
 
 # ==============================
 # Clustering parameters for deep10M
-kmeans_niters = 1
-max_points_per_cluster = 40
-verbose = True
-frac = 0.56
-stash_size = 50649
-init_n_c = [209727, 107417, 39132, 14424, 5796, 2394]
-init_ncentroids = int(init_n_c[0] * 1.1)
-step = int(init_ncentroids * 0.1)
+if dataset == "deep10M":
+    kmeans_niters = 5
+    max_points_per_cluster = 40
+    verbose = True
+    frac = 0.56
+    stash_size = 50649
+    init_n_c = [209727, 107417, 39132, 14424, 5796, 2394]
+    init_ncentroids = int(init_n_c[0] * 1.1)
+    step = int(init_ncentroids * 0.1)
 # ==============================
 
 # Cumulative offset for cluster index assignment
@@ -172,4 +185,4 @@ tensors_dict = {
     'index': n_cluster,
     'centroids': centroids,
 }
-torch.save(tensors_dict, "deep10M.pth")
+torch.save(tensors_dict, data_dir + dataset+".pth")

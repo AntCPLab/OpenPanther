@@ -5,11 +5,11 @@
 #include "absl/strings/escaping.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_split.h"
-#include "batch_min.h"
-#include "dist_cmp.h"
-#include "experimental/panther/bitwidth_adjust.h"
-#include "experimental/panther/customize_pir/seal_mpir.h"
-#include "gc_topk.h"
+#include "../protocol/batch_min.h"
+#include "../protocol/dist_cmp.h"
+#include "../protocol/bitwidth_adjust.h"
+#include "../protocol/customize_pir/seal_mpir.h"
+#include "../protocol/gc_topk.h"
 #include "llvm/Support/CommandLine.h"
 #include "spdlog/spdlog.h"
 #include "yacl/base/buffer.h"
@@ -115,7 +115,7 @@ int main(int argc, char** argv) {
   auto r1 = lctx->GetStats()->sent_actions.load();
   auto c1 = lctx->GetStats()->sent_bytes.load();
   SPDLOG_INFO(
-      "Batch number: {}, element number: {}, Argmax server sent actions: "
+      "Batch number: {}, element number: {}, Argmin server sent actions: "
       "{}, "
       "Argmin comm: {} MB",
       l, bin_size, r1 - r0, (c1 - c0) / 1024.0 / 1024.0);
@@ -135,5 +135,5 @@ int main(int argc, char** argv) {
   emp::finalize_semi_honest();
   const auto topk_e = std::chrono::system_clock::now();
   const DurationMillis Topk_time = topk_e - topk_s;
-  SPDLOG_INFO("Distance cmp time: {} ms", Topk_time.count());
+  SPDLOG_INFO("Topk cmp time: {} ms", Topk_time.count());
 }

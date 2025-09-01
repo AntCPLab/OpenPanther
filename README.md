@@ -3,6 +3,7 @@
 This repository contains the source code for our work accepted at **CCS 2025**, titled:
 > **[Panther: Private Approximate Nearest Neighbor Search in the Single Server Setting](https://eprint.iacr.org/2024/1774)**
 
+
  The core source code for Panther is located in the `experimental/panther` directory.
 The codes are still under heavy developments, and **should not** be used in any security sensitive product.
 
@@ -13,15 +14,43 @@ Our implementation is based on the [SPU](https://github.com/secretflow/spu) libr
 - **Garbled Circuits** from [emp-sh2pc](https://github.com/emp-toolkit/emp-sh2pc).
 - **Multi-quiry Seal-PIR** from [PSI](https://github.com/secretflow/psi)
 
-The setup follows the official [build prerequisites for SPU on Linux](https://github.com/secretflow/spu/blob/main/CONTRIBUTING.md#build) 
+The setup follows the official [build prerequisites for SPU on Linux](https://github.com/secretflow/spu/blob/main/CONTRIBUTING.md#build) :
 ```
-Install gcc>=11.2, cmake>=3.26, ninja, nasm>=2.15, python>=3.9, bazelisk, xxd, lld
+Install gcc>=11.2, cmake>=3.22, ninja, nasm>=2.15, python>=3.9, bazelisk, xxd, lld, numpy
 ```
 
-**We provide the necessary Bazel commands to build and run Panther in the sections below.**
-These commands have been tested on Ubuntu 22.04 (Linux).
+We provide the necessary Bazel commands to build and run Panther in the sections below.
+These commands have been tested on Ubuntu 22.04 (Linux)
+
+**How to use bazel:**
+
+We prefer to use [`bazelisk`](https://github.com/bazelbuild/bazelisk?tab=readme-ov-file) to install bazel. 
+
+- **Linux**: You can download Bazelisk binary on its [Releases](https://github.com/bazelbuild/bazelisk/releases) page and add it to your `PATH` manually.
+   (e.g. copy it to `/usr/local/bin/bazel`).
+- Navigate to the `***/OpenPanther` directory and run:
+```bash 
+bazel --version 
+```
+
+
+Then you can run `cd OpenPanther` and  use `bazel` to build Panther unit test  and e2e test.
 
 ⚠️ **Note**: We do not recommend using `bazel build //...` or `bazel build ...` to build all targets. SPU is a large, feature-rich library, and building everything will compile many irrelevant components — this process may take a long time.
+
+**Troubleshooting: Ninja Not Found**
+
+If you encounter the following error:
+
+```shell 
+CMake Error: CMake was unable to find a build program corresponding to "Ninja".
+``` 
+
+Please install **ninja** using:
+
+```shell
+sudo apt install ninja-build
+```
 
 <!-- We only need to build the backend of SPU. It can reduce the dependencies of the implentation.   -->
 ## Code Structure
@@ -47,68 +76,60 @@ This section describes the structure of the **Panther** module, located at `expe
 - `throttle.sh`: Script for network bandwidth throttling, used to simulate different network conditions during performance evaluation.
 
 
-## Unit Test
-Our framework integrates multiple cryptographic subprotocols. We provide unit tests to verify the correctness of each component in isolation. We hope these subprotocols can be easily reused in other work.
-
-In cases where the evaluator has **constrained computational resources**, it is feasible to test each subprotocol separately. The complete framework is composed of multiple subprotocols, connected via lightweight local computation for intermediate data processing.
-
-**Run Unit Test:**
-
-```
-# Distance Compute
-bazel run //experimental/panther:dist_cmp_test
-bazel run //experimental/panther:ss_dist_cmp_test
-```
-
-```
-# Customed Batch PIR
-bazel run //experimenta/panther/fix_pir_customed:seal_mpir_test
-```
-
-```
-# SS-based Min
-bazel run //experimental/panther:batch_argmax_test
-
-# Trunc and Extend
-bazel run //experimental/panther:bitwidth_adjust_test
-``` 
-```
-# GC-based top-k
-# follow emp-toolkit style
-bazel run //experimental/panther:test_topk 1 1111 &
-bazel run //experimental/panther:test_topk 2 1111
-```
-
 
 
 ## End-to-end Test
-We provide a [random data version](#random-data-version)  and [real data version](#real-data-version) for end-to-end evaluation. The random version is only used in performance test, it lets the user quickly reproduce the performance result without downloading the dataset or $k$-means model. 
+We provide a [random data version](#random-data-version)  and [real data version](#real-data-version) for end-to-end evaluation. **The random version is only used in performance test, it lets the user quickly reproduce the performance result without downloading the dataset or $k$-means model**.
+
+
+⚠️ **Note**: 
+
+- A 1M dataset requires 64 GB of memory.
+- A 10M dataset requires 256 GB of memory.
+- If resources are limited, consider running unit tests.
 
 ### Random Data Version
 ----------------------
-#### Build Random Version 
-(The initial compilation may take a long time.)
-The default parameters are for the SIFT dataset.
-```
-bazel build -c opt //experimental/panther:random_panther_client
-bazel build -c opt //experimental/panther:random_panther_server
-```
 #### Execute Random Version  
+``` bash
+# Sift client
+bazel run -c opt //experimental/panther:random_panther_client  --copt=-DTEST_SIFT
+# Sift server
+bazel run -c opt //experimental/panther:random_panther_server --copt=-DTEST_SIFT
+
+# Amazon client
+bazel run -c opt //experimental/panther:random_panther_client  --copt=-DTEST_AMAZON
+# Amazon server
+bazel run -c opt //experimental/panther:random_panther_server --copt=-DTEST_AMAZON
+
+# 
+# Deep1M client
+bazel run -c opt //experimental/panther:random_panther_client  --copt=-DTEST_DEEP1M
+# Deep1M server
+bazel run -c opt //experimental/panther:random_panther_server --copt=-DTEST_DEEP1M
+
 ```
-bazel run //experimental/panther:random_panther_client
-bazel run //experimental/panther:random_panther_server
+
+#### Execute Random deep1B(10M) Version  
+``` bash
+# client
+bazel run -c opt //experimental/panther:random_panther_client_10M
+# server
+bazel run -c opt //experimental/panther:random_panther_server_10M
 ```
+
+
 ### Real Data Version
 ----------
 If you want to run the real data version:
 
-   [Step 1]((#datasets).). Download the target dataset 
+[Step 1]((#datasets).). Download the target dataset 
 
-[Step 2](#sec-kmeans). Obtain the $k$-means model and use `XX.py` to convert the `**.pth` to panther  input format. The output will be saved in `experimental/panther/dataset` 
+[Step 2](#sec-kmeans). Obtain the $k$-means model and use `convert_model_to_input.py` to convert the `sift.pth` or `deep10M.pth` to panther  input format. The output will be saved in `experimental/panther/dataset` 
 
--  Download the $k$-means model into datasets, which involves the clustering information and centroids information. 
+-  **Recommended**:  Using the pretrained $k$-means model , which involves the clustering information and centroids information. 
 
-- Train  the $k$-means model by yourself. We provide the train code here.  
+- Train the $k$-means model by yourself. We provide the train code here. You need to manually tune the Panther parameters based on the model. 
 
 [Step 3](#build--run-demo). Build and run the Panther code
 
@@ -126,34 +147,134 @@ We have reproduced the k-means clustering algorithm from [SANNS](), where the im
 #### Dependencies
 We provides the dependencies for dataset processing and plaintext 
 k-means algorithm here.   
+``` bash
+conda create -n panther python=3.12.2
+conda activate panther
+conda install numpy==1.26.4
+conda install h5py==3.14.0
+conda install pytorch==2.3.0
+conda install pytorch::faiss-cpu
 ```
-Python  3.12.2
-numpy   1.26.4
-torch   2.3.0
-faiss   1.8.0
-```
-We recommend using these versions to ensure compatibility and reproducibility.
+We recommend using these versions to ensure compatibility and reproducibility, using conda.
 
+ Train model (Not required)
+```bash
+# <dataset>: sift or deep10M
+python3 ./experimental/panther/k-means/sanns_kmeans.py <dataset> 
+```
+Test model accuracy (Not required)
+
+```bash
+# <dataset>: sift or deep10M
+python3 ./experimental/panther/k-means/accuracy_test.py <dataset> 
+```
+
+#### Convert model to input format (Required)
+Make sure that the `/experimental/panther/dataset` directory contains `*.pth` and `*.hdf5` files.
+
+```bash
+# <dataset>: sift or deep10M
+python3 ./experimental/panther/k-means/convert_model_to_input.py <dataset> 
+```
+
+For the SIFT dataset, the output directory structure will be:
+
+```
+/experimental/panther/dataset/
+├── sift/
+│   ├── sift.pth
+│   ├── sift-128-euclidean.hdf5
+│   ├── sift_dataset.txt
+│   ├── sift_test.txt
+│   ├── sift_centroids.txt
+│   ├── sift_neighbors.txt
+│   ├── sift_ptoc.txt
+│   └── sift_stash.txt
+
+```
 
 ### Build & Run demo 
+
+For Sift:
+``` bash
+# build the sift demo
+# client
+bazel build -c opt //experimental/panther:panther_client
+# server
+bazel build -c opt //experimental/panther:panther_server
+
+# Run the sift demo
+# client
+bazel run //experimental/panther:panther_client
+# server
+bazel run //experimental/panther:panther_server
+```
+
 For Deep1B_10M:
 
-```
-# build the demo
-bazel build -c opt //experimental/panther:random_panther_client
-bazel build -c opt //experimental/panther:random_panther_server
+``` bash
+# build the deep1B demo
+# client
+bazel build -c opt //experimental/panther:panther_client_deep10M
+# server
+bazel build -c opt //experimental/panther:panther_server_deep10M
 
-# Run the demo
-bazel run //experimental/panther:random_panther_client
-bazel run //experimental/panther:random_panther_server
+# Run the deep1B demo
+# client
+bazel run //experimental/panther:panther_client_deep10M
+# server
+bazel run //experimental/panther:panther_server_deep10M
 ```
-For Sift:
-```
-# build the demo
-bazel build -c opt //experimental/panther:random_panther_client
-bazel build -c opt //experimental/panther:random_panther_server
 
-# Run the demo
-bazel run //experimental/panther:random_panther_client
-bazel run //experimental/panther:random_panther_server
+## Unit Test
+Our framework integrates multiple cryptographic subprotocols. We provide unit tests to verify the correctness of each component in isolation. We hope these subprotocols can be easily reused in other work.
+
+In cases where the evaluator has **constrained computational resources**, it is feasible to test each subprotocol separately. The complete framework is composed of multiple subprotocols, connected via lightweight local computation for intermediate data processing.
+
+**Run Unit Test:**
+
+```bash
+# Running Distance Computation Tests
+bazel run -c opt //experimental/panther:dist_cmp_test
+bazel run -c opt //experimental/panther:dist_cmp_ss_test.
+```
+
+```bash
+# Running Custom Multi-query PIR Test
+bazel run -c opt //experimental/panther/protocol/customize_pir:seal_mpir_test
+```
+
+```bash
+# Running SS-based Argmax Test
+bazel run -c opt //experimental/panther:batch_min_test
+
+# Running Bitwidth Adjustment Test
+bazel run -c opt //experimental/panther:bitwidth_adjust_test
+``` 
+```bash
+# Running GC-based Top-K Test
+# follow emp-toolkit style
+# requires launching server and client separately
+# server
+bazel run //experimental/panther:topk_test 1 1111 
+# client
+bazel run //experimental/panther:topk_test 2 1111
+```
+
+``` bash
+# Running Mixed (SS and GC) Top-k Test
+# requires launching server and client separately
+# server
+bazel run -c opt //experimental/panther:topk_benchmark -- -rank=1 
+# client
+bazel run -c opt //experimental/panther:topk_benchmark -- -rank=0
+```
+
+``` bash 
+# Running Running Distance Computation Tests with Truncation
+# requires launching server and client separately
+# server
+azel run -c opt //experimental/panther:distance_benchmark -- -rank=1
+# client
+azel run -c opt //experimental/panther:distance_benchmark -- -rank=0
 ```

@@ -16,7 +16,7 @@ const size_t N = 4096;
 const size_t dis_N = 2048;
 const size_t compare_radix = 5;
 const size_t max_cluster_points = 20;
-const std::vector<int64_t> k_c = {50810, 25603, 9968, 3227, 29326};
+const std::vector<int64_t> k_c = {49810, 25603, 8968, 2746,  18722};
 const std::vector<int64_t> group_bin_number = {458, 270, 178, 84, 262};
 const std::vector<int64_t> group_k_number = {50, 31, 19, 13, 10};
 const size_t total_points_num = 1000000;
@@ -27,11 +27,13 @@ const size_t cluster_dc_bits = 5;
 const size_t message_size = 3;
 const size_t ele_size = (dims + 2 * message_size) * max_cluster_points;
 const uint32_t MASK = (1 << logt) - 1;
+const uint32_t sum_k_c = 105849;
+const uint32_t total_cluster_size = 87127;
 
-auto cluster_data = read_data(118934, 128, "dataset/centrios.txt");
-auto stash = read_data(29326, 1, "dataset/stash.txt");
-auto ps = read_data(1000000, 128, "dataset/dataset.txt");
-auto ptoc = read_data(89608, 20, "dataset/ptoc.txt");
+auto cluster_data = read_data(sum_k_c, dims, "dataset/sift_centroids.txt");
+auto stash = read_data(k_c[k_c.size()-1], 1, "dataset/sift_stash.txt");
+auto ps = read_data(total_points_num, dims, "dataset/sift_dataset.txt");
+auto ptoc = read_data(total_cluster_size, max_cluster_points, "dataset/sift_ptoc.txt");
 
 llvm::cl::opt<std::string> Parties(
     "parties", llvm::cl::init("127.0.0.1:9530,127.0.0.1:9531"),

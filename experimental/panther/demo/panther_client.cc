@@ -16,7 +16,7 @@ const size_t N = 4096;
 const size_t dis_N = 2048;
 const size_t compare_radix = 5;
 const size_t max_cluster_points = 20;
-const std::vector<int64_t> k_c = {50810, 25603, 9968, 3227, 29326};
+const std::vector<int64_t> k_c =  {49810, 25603, 8968, 2746,  18722};
 const std::vector<int64_t> group_bin_number = {458, 270, 178, 84, 262};
 const std::vector<int64_t> group_k_number = {50, 31, 19, 13, 10};
 const size_t total_points_num = 1000000;
@@ -29,9 +29,9 @@ const size_t ele_size = (dims + 2 * message_size) * max_cluster_points;
 const uint32_t MASK = (1 << logt) - 1;
 
 // real input version
-auto test_data = read_data(1, dims, "dataset/test.txt");
+auto test_data = read_data(1, dims, "dataset/sift_test.txt");
 // Only for check the correctness of result:
-auto neighbors = read_data(1, 10, "dataset/neighbors.txt");
+auto neighbors = read_data(1, topk_k, "dataset/sift_neighbors.txt");
 
 llvm::cl::opt<std::string> Parties(
     "parties", llvm::cl::init("127.0.0.1:9530,127.0.0.1:9531"),

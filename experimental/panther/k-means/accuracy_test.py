@@ -10,46 +10,47 @@ import sys
 
 # Load dataset
 current_dir = os.getcwd()
-file_path = os.path.join(current_dir, "../dataset/deep-image-96-euclidean.hdf5")
-deep10M = h5py.File(file_path, "r")
-test_x = deep10M['test'][:]
-train_x = deep10M['train'][:]
-train_x = ((train_x + 1.0) * 127.5 + 0.5).astype(int)
-test_x = ((test_x + 1.0) * 127.5 + 0.5).astype(int)
+data_dir = current_dir + "/experimental/panther/dataset/"
+dataset = sys.argv[1]
+if dataset == "deep10M":
+    file_name = "deep-image-96-angular.hdf5"
+elif dataset == "sift":
+    file_name = "sift-128-euclidean.hdf5"
+else:
+    raise ValueError(f"Dataset '{dataset}' is not supported.")
+
+file_path = os.path.join(data_dir, file_name)
+data_h5py = h5py.File(file_path, "r")
+test_x = data_h5py['test'][:]
+train_x = data_h5py['train'][:]
+if dataset == "deep10M":
+    train_x = ((train_x + 1.0) * 127.5 + 0.5).astype(int)
+    test_x = ((test_x + 1.0) * 127.5 + 0.5).astype(int)
 test_x = torch.from_numpy(test_x)
 train_x = torch.from_numpy(train_x)
 print("Dataset load done!")
 
 # Load k-means cluster
 # Recall: 92.639 %
-model_dict = torch.load('deep10M.pth')
+model_dict = torch.load(data_dir+dataset+'.pth')
 ids = model_dict['ids'].type(torch.int)
 cluster_ids = model_dict['cluster_idx'].type(torch.int)
 index = model_dict['index'].type(torch.int)
 centroids = model_dict['centroids'].type(torch.int)
 
-# # =====================================
-# # fix 10M cluster ics
-# check_point = [4661080, 2505289, 1262304, 696089, 387058, 211437, 122682, 65587, 35294]
-# offset = 0
-# left = 0
-# right = check_point[0]
-# for i in range(0, len(check_point)):
-#     cluster_ids[left:right, :].sub_(offset)
-#     left += check_point[i]
-#     if i + 1 < len(check_point):
-#         right += check_point[i + 1]
-#     offset += index[i]
-# # =======================================
-
 # parameters
 dim = test_x.shape[1]
 k = 10
 # deep10M
-k_cluster = 186
+k
+if dataset == "deep10M":
+    k_cluster = 186
 
 # deep1M
-# k_cluster = 113
+if dataset == "sift":
+    k_cluster = 123
+
+print(model_dict['index']) 
 all_cluster = centroids.shape[0]
 num_clusters = sum(index) - index[-1]
 print("Num_clusters: ", num_clusters)
@@ -102,12 +103,13 @@ for i in range(num_test_x):
     total += np.intersect1d(cmp_id, exp_kann_res).shape[0]
     stash_total = np.intersect1d(exp_kann_res, stash_point).shape[0]
     total += stash_total
-    print(
-        "Stash total: ",
-        stash_total,
-        "Total: ",
-        total,
-        "Acc: ",
-        total / ((i + 1) * k),
-    )
+    if i % 100 == 0:
+        print(
+            "Stash total: ",
+            stash_total,
+            "Total: ",
+            total,
+            "Acc: ",
+            total / ((i + 1) * k),
+        )
 print("Recall: ", total / num_test_x * k)  #

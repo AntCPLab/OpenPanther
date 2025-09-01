@@ -43,8 +43,8 @@ struct TestParams {
 class SealMultiPirTest : public testing::TestWithParam<TestParams> {};
 INSTANTIATE_TEST_SUITE_P(Works_Instances, SealMultiPirTest,
                          testing::Values(
-                             // TestParams{100, 100000, 4096, 4096}));
-                             TestParams{183, 450000, 4080, 4096}));  //
+                             TestParams{100, 100000, 4096, 4096}));
+                            //  TestParams{183, 450000, 4080, 4096}));  //
 
 using DurationMillis = std::chrono::duration<double, std::milli>;
 
