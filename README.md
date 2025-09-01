@@ -91,6 +91,7 @@ We provide a [random data version](#random-data-version)  and [real data version
 ### Random Data Version
 ----------------------
 #### Execute Random Version  
+The random version uses randomly generated data. The parameters follow [SANNS](https://www.usenix.org/conference/usenixsecurity20/presentation/chen-hao) exactly.
 ``` bash
 # Sift client
 bazel run -c opt //experimental/panther:random_panther_client  --copt=-DTEST_SIFT
