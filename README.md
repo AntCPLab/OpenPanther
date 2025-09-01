@@ -1,7 +1,6 @@
 # PANTHER: Private Approximate Nearest Neighbor Search in the Single Server Setting
 
-This repository contains the source code for our work accepted at **CCS 2025**, titled:
-> **[Panther: Private Approximate Nearest Neighbor Search in the Single Server Setting](https://eprint.iacr.org/2024/1774)**
+This repository contains the source code for our work accepted at **CCS 2025**, titled: **[Panther: Private Approximate Nearest Neighbor Search in the Single Server Setting](https://eprint.iacr.org/2024/1774)**
 
 
  The core source code for Panther is located in the `experimental/panther` directory.
@@ -91,7 +90,6 @@ We provide a [random data version](#random-data-version)  and [real data version
 ### Random Data Version
 ----------------------
 #### Execute Random Version  
-The random version uses randomly generated data. The parameters follow [SANNS](https://www.usenix.org/conference/usenixsecurity20/presentation/chen-hao) exactly.
 ``` bash
 # Sift client
 bazel run -c opt //experimental/panther:random_panther_client  --copt=-DTEST_SIFT
@@ -103,7 +101,6 @@ bazel run -c opt //experimental/panther:random_panther_client  --copt=-DTEST_AMA
 # Amazon server
 bazel run -c opt //experimental/panther:random_panther_server --copt=-DTEST_AMAZON
 
-# 
 # Deep1M client
 bazel run -c opt //experimental/panther:random_panther_client  --copt=-DTEST_DEEP1M
 # Deep1M server
@@ -124,17 +121,21 @@ bazel run -c opt //experimental/panther:random_panther_server_10M
 ----------
 If you want to run the real data version:
 
-[Step 1]((#datasets).). Download the target dataset 
+Step 1. Download the target dataset.  
 
-[Step 2](#sec-kmeans). Obtain the $k$-means model and use `convert_model_to_input.py` to convert the `sift.pth` or `deep10M.pth` to panther  input format. The output will be saved in `experimental/panther/dataset` 
+Step 2. Download the pretrained $k$-means model and use `convert_model_to_input.py` to convert either `sift.pth` or `deep10M.pth` into the Panther input format. The converted output will be saved in the directory: `experimental/panther/dataset/`. 
 
--  **Recommended**:  Using the pretrained $k$-means model , which involves the clustering information and centroids information. 
+-  ✅ Recommendation:
+Use the **pretrained $k$-means model**, which already includes clustering assignments and centroid information. This is the preferred option, as it saves time and ensures compatibility with Panther’s expected input format.
 
-- Train the $k$-means model by yourself. We provide the train code here. You need to manually tune the Panther parameters based on the model. 
+-  ⚠️ Alternative: You can also choose to train the $k$-means model yourself using the provided training code. However, please note that:
+   - The code **may lack optimization** and could be **computationally expensive**.
+   - Training might **take a long time**, especially on large datasets like SIFT or Deep1B.
+   - After training, you’ll need to **manually tune Panther’s parameters** (e.g., number of clusters, posting list configuration) based on your model’s output (e.g., centroids, cluster sizes).
 
-[Step 3](#build--run-demo). Build and run the Panther code
+Step 3. Build and run the Panther demo code.
 
-### Dataset
+### Dataset & Model
 We provide two datasets, which are sourced from [ann-benchmarks](https://github.com/erikbern/ann-benchmarks/):
 | Dataset                                                           | Dimensions | Train size | Test size | Neighbors | Distance  | Download                                                                   |
 | ----------------------------------------------------------------- | ---------: | ---------: | --------: | --------: | --------- | -------------------------------------------------------------------------- |
@@ -142,9 +143,13 @@ We provide two datasets, which are sourced from [ann-benchmarks](https://github.
 | [SIFT](http://corpus-texmex.irisa.fr/)                           |        128 |  1,000,000 |    10,000 |       100 | Euclidean | [HDF5](http://ann-benchmarks.com/sift-128-euclidean.hdf5) (501MB)          |
 
 ⚠️ **Note**: The original deep1B provides neighbors based on angular distance. In our code, we have recomputed the neighbors under Euclidean distance using a linear scan.
+
+Please download `sift.pth` and `deep10M.pth` into `experimental/panther/dataset`. 
+
+
 <a id="sec-kmeans"></a>
 ### $k$-means Algorithm
-We have reproduced the k-means clustering algorithm from [SANNS](https://www.usenix.org/conference/usenixsecurity20/presentation/chen-hao), where the implementation of the k-means clustering component relies on the [FAISS](https://github.com/facebookresearch/faiss) library, a commonly used library in ANNS.
+We have reproduced the k-means clustering algorithm from [SANNS](), where the implementation of the k-means clustering component relies on the [FAISS](https://github.com/facebookresearch/faiss) library, a commonly used library in ANNS.
 #### Dependencies
 We provides the dependencies for dataset processing and plaintext 
 k-means algorithm here.   
@@ -170,7 +175,7 @@ Test model accuracy (Not required)
 python3 ./experimental/panther/k-means/accuracy_test.py <dataset> 
 ```
 
-#### Convert model to input format (Required)
+### Convert model to input format (Required)
 Make sure that the `/experimental/panther/dataset` directory contains `*.pth` and `*.hdf5` files.
 
 ```bash
@@ -275,7 +280,7 @@ bazel run -c opt //experimental/panther:topk_benchmark -- -rank=0
 # Running Running Distance Computation Tests with Truncation
 # requires launching server and client separately
 # server
-azel run -c opt //experimental/panther:distance_benchmark -- -rank=1
+bazel run -c opt //experimental/panther:distance_benchmark -- -rank=1
 # client
-azel run -c opt //experimental/panther:distance_benchmark -- -rank=0
+bazel run -c opt //experimental/panther:distance_benchmark -- -rank=0
 ```
