@@ -1,4 +1,5 @@
-# PANTHER: Private Approximate Nearest Neighbor Search in the Single Server Setting
+# OpenPanther
+## PANTHER: Private Approximate Nearest Neighbor Search in the Single Server Setting
 
 This repository contains the source code for our work accepted at **CCS 2025**, titled: **[Panther: Private Approximate Nearest Neighbor Search in the Single Server Setting](https://eprint.iacr.org/2024/1774)**
 
